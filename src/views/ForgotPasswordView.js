@@ -1,6 +1,7 @@
-﻿import { store } from '../state/store.js';
+import { store } from '../state/store.js';
 import { authApi } from '../api/auth.js';
 import { Icons } from '../components/CosmicIcons.js';
+import { ORBIT_LOGO } from '../utils/mediaImage.js';
 
 export function renderForgotPasswordView() {
   return `
@@ -11,7 +12,7 @@ export function renderForgotPasswordView() {
       <div class="auth-container animate-fade-up" style="max-width:520px;">
         <div class="auth-form-panel" style="flex:unset;width:100%;">
           <div style="text-align:center;margin-bottom:16px;">
-            <img src="/Orbit_logo.png" alt="Orbit" style="height:50px;margin:0 auto;filter:drop-shadow(0 4px 20px rgba(0,174,189,0.4));" />
+            <img src="${ORBIT_LOGO}" alt="Orbit" style="height:50px;margin:0 auto;filter:drop-shadow(0 4px 20px rgba(0,174,189,0.4));" />
           </div>
           <h2 style="text-align:center;">Forgot Password</h2>
           <p class="auth-subtitle" style="text-align:center;">Enter your email to receive a reset code</p>

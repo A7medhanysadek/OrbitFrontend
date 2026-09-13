@@ -1,6 +1,7 @@
 import { store } from '../state/store.js';
 import { Icons } from './CosmicIcons.js';
 import { clearTokens, setCurrentUser } from '../api/client.js';
+import { ORBIT_LOGO } from '../utils/mediaImage.js';
 
 export function renderSidebar() {
   const state = store.getState();
@@ -14,7 +15,7 @@ export function renderSidebar() {
   return `
     <aside class="app-sidebar ${collapsed ? 'collapsed' : ''}" id="app-sidebar">
       <div class="sidebar-logo">
-        <img src="/Orbit_logo.png" alt="Orbit" />
+        <img src="${ORBIT_LOGO}" alt="Orbit" />
         <span class="logo-text">RBIT</span>
       </div>
 

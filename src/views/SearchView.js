@@ -5,6 +5,7 @@ import { streamApi } from '../api/stream.js';
 import { clipApi } from '../api/clip.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { openClipPlayerModal } from './ClipsFeedView.js';
+import { ORBIT_LOGO, DEFAULT_BANNER, attachMediaImages } from '../utils/mediaImage.js';
 
 let searchFilter = 'all'; // 'all', 'channels', 'categories', 'streams', 'clips'
 let lastResults = { channels: [], categories: [], streams: [], clips: [] };
@@ -174,7 +175,7 @@ function renderResults(q) {
           ${channels.map(ch => `
             <div class="channel-search-card" data-channel-id="${ch.id}">
               <div class="channel-search-avatar">
-                ${ch.profilePhotoUrl ? `<img src="${ch.profilePhotoUrl}" alt="${escapeHtml(ch.channelName)}" onerror="this.src='/Orbit_logo.png';" />` : (ch.channelName || 'C')[0].toUpperCase()}
+                ${ch.profilePhotoUrl ? `<img src="${ch.profilePhotoUrl}" alt="${escapeHtml(ch.channelName)}" onerror="this.src='${ORBIT_LOGO}';" />` : (ch.channelName || 'C')[0].toUpperCase()}
               </div>
               <div style="flex:1;overflow:hidden;">
                 <div style="display:flex;align-items:center;gap:6px;">
@@ -202,7 +203,7 @@ function renderResults(q) {
           ${streams.map(s => `
             <div class="card stream-card hover-lift" data-stream-id="${s.id}">
               <div class="stream-thumb">
-                <img src="${s.thumbnailUrl || '/cosmic_orbit_banner.png'}" alt="${escapeHtml(s.title)}" />
+                <img src="${DEFAULT_BANNER}" data-thumb-src="${s.thumbnailUrl || ''}" alt="${escapeHtml(s.title)}" />
                 <div style="position:absolute;top:10px;left:10px;display:flex;gap:6px;">
                   <span class="badge-live">LIVE</span>
                   <span class="badge-viewers">${Icons.eye} ${s.viewerCount || 0}</span>
@@ -257,7 +258,7 @@ function renderResults(q) {
           ${clips.map(c => `
             <div class="card clip-card hover-lift" data-clip-id="${c.id}">
               <div class="clip-thumb">
-                <img src="${c.thumbnailUrl || '/cosmic_orbit_banner.png'}" alt="${escapeHtml(c.title)}" onerror="this.onerror=null;this.src='/cosmic_orbit_banner.png';" />
+                <img src="${DEFAULT_BANNER}" data-thumb-src="${c.thumbnailUrl || ''}" alt="${escapeHtml(c.title)}" />
                 <span class="clip-views">${Icons.eye} ${c.viewCount || 0}</span>
               </div>
               <div class="clip-info">
@@ -272,6 +273,7 @@ function renderResults(q) {
   }
 
   container.innerHTML = html;
+  attachMediaImages(container);
 
   // Event handlers
   container.querySelectorAll('.channel-search-card, .btn-view-channel').forEach(el => {

@@ -2,6 +2,7 @@ import { store } from '../state/store.js';
 import { clipApi } from '../api/clip.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { openClipPlayerModal, closeClipPlayerModal } from '../components/ClipPlayerModal.js';
+import { DEFAULT_BANNER, attachMediaImages } from '../utils/mediaImage.js';
 
 export { openClipPlayerModal, closeClipPlayerModal };
 
@@ -43,9 +44,9 @@ async function loadClips() {
     grid.innerHTML = currentClips.map(c => `
       <div class="card clip-card hover-lift stagger-item" data-clip-id="${c.id}">
         <div class="clip-thumb">
-          <img src="${c.thumbnailUrl || '/cosmic_orbit_banner.png'}"
-               alt="${escapeHtml(c.title || 'Clip')}"
-               onerror="this.onerror=null;this.src='/cosmic_orbit_banner.png';" />
+          <img src="${DEFAULT_BANNER}"
+               data-thumb-src="${c.thumbnailUrl || ''}"
+               alt="${escapeHtml(c.title || 'Clip')}" />
           <span class="clip-views">${Icons.eye} ${c.viewCount || 0} views</span>
           ${c.durationSeconds ? `<span style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.8);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">${Math.round(c.durationSeconds)}s</span>` : ''}
           <div style="position:absolute;inset:0;background:rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;" class="clip-play-overlay">
@@ -63,6 +64,9 @@ async function loadClips() {
         </div>
       </div>
     `).join('');
+
+    // Attach blob-streamed thumbnails for ngrok bypass
+    attachMediaImages(grid);
 
     // Add hover play button effect & click listener
     grid.querySelectorAll('.clip-card').forEach(card => {

@@ -1,6 +1,7 @@
-﻿import { store } from '../state/store.js';
+import { store } from '../state/store.js';
 import { categoryApi } from '../api/category.js';
 import { Icons } from '../components/CosmicIcons.js';
+import { DEFAULT_BANNER, attachMediaImages } from '../utils/mediaImage.js';
 
 let activeTab = 'streams';
 
@@ -58,10 +59,11 @@ async function loadContent(slug) {
       if (!streams?.length) { container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128752;</div><h3>No Live Streams</h3><p>No one is streaming in this category right now.</p></div>'; return; }
       container.innerHTML = `<div class="streams-grid">${streams.map(s => `
         <div class="card stream-card hover-lift" data-sid="${s.id}">
-          <div class="stream-thumb"><img src="${s.thumbnailUrl || '/cosmic_orbit_banner.png'}" /><div style="position:absolute;top:10px;left:10px;display:flex;gap:6px;"><span class="badge-live">LIVE</span><span class="badge-viewers">${s.viewerCount || 0}</span></div></div>
+          <div class="stream-thumb"><img src="${DEFAULT_BANNER}" data-thumb-src="${s.thumbnailUrl || ''}" /><div style="position:absolute;top:10px;left:10px;display:flex;gap:6px;"><span class="badge-live">LIVE</span><span class="badge-viewers">${s.viewerCount || 0}</span></div></div>
           <div class="stream-info"><div class="streamer-row"><div class="streamer-avatar">${(s.streamerName||'S')[0].toUpperCase()}</div><div><div class="streamer-name">${s.streamerName||'Streamer'}</div></div></div><div class="stream-title">${s.title||'Untitled'}</div></div>
         </div>
       `).join('')}</div>`;
+      attachMediaImages(container);
       container.querySelectorAll('.stream-card').forEach(c => c.addEventListener('click', () => {
         const s = streams.find(x => x.id === parseInt(c.dataset.sid));
         if (s) { store.setActiveStream(s); store.navigate('watch', { streamId: s.id }); }
@@ -72,8 +74,9 @@ async function loadContent(slug) {
       const clips = await categoryApi.getClips(slug);
       if (!clips?.length) { container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#127916;</div><h3>No Clips</h3></div>'; return; }
       container.innerHTML = `<div class="clips-grid">${clips.map(c => `
-        <div class="card clip-card hover-lift"><div class="clip-thumb"><img src="${c.thumbnailUrl || '/cosmic_orbit_banner.png'}" /><span class="clip-views">${Icons.eye} ${c.viewCount||0}</span></div><div class="clip-info"><div class="clip-title">${c.title||'Untitled'}</div><div class="clip-meta">by ${c.creatorUsername||'Unknown'}</div></div></div>
+        <div class="card clip-card hover-lift"><div class="clip-thumb"><img src="${DEFAULT_BANNER}" data-thumb-src="${c.thumbnailUrl || ''}" /><span class="clip-views">${Icons.eye} ${c.viewCount||0}</span></div><div class="clip-info"><div class="clip-title">${c.title||'Untitled'}</div><div class="clip-meta">by ${c.creatorUsername||'Unknown'}</div></div></div>
       `).join('')}</div>`;
+      attachMediaImages(container);
     } catch (e) { container.innerHTML = '<p class="text-muted">Failed to load clips</p>'; }
   }
 }

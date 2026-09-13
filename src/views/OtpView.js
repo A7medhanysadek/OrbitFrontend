@@ -1,5 +1,6 @@
-﻿import { store } from '../state/store.js';
+import { store } from '../state/store.js';
 import { authApi } from '../api/auth.js';
+import { ORBIT_LOGO } from '../utils/mediaImage.js';
 
 export function renderOtpView() {
   const email = store.getState().viewParams?.email || '';
@@ -12,7 +13,7 @@ export function renderOtpView() {
       <div class="auth-container animate-fade-up" style="max-width:520px;">
         <div class="auth-form-panel" style="text-align:center;flex:unset;width:100%;">
           <div style="margin-bottom:16px;">
-            <img src="/Orbit_logo.png" alt="Orbit" style="height:60px;margin:0 auto;filter:drop-shadow(0 4px 20px rgba(0,174,189,0.4));" />
+            <img src="${ORBIT_LOGO}" alt="Orbit" style="height:60px;margin:0 auto;filter:drop-shadow(0 4px 20px rgba(0,174,189,0.4));" />
           </div>
           <h2 style="text-align:center;">Verify Your Email</h2>
           <p class="auth-subtitle" style="text-align:center;">We sent a 6-digit code to <strong>${email}</strong></p>

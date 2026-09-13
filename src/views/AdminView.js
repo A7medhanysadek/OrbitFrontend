@@ -3,6 +3,7 @@ import { adminApi } from '../api/admin.js';
 import { categoryApi } from '../api/category.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { openClipPlayerModal } from './ClipsFeedView.js';
+import { DEFAULT_BANNER, attachMediaImages } from '../utils/mediaImage.js';
 
 let currentTab = 'overview';
 let userPage = 1;
@@ -594,7 +595,7 @@ async function renderClipsTab(container) {
         ${clips.map(c => `
           <div class="card clip-card hover-lift" data-clip-id="${c.id}">
             <div class="clip-thumb">
-              <img src="${c.thumbnailUrl || '/cosmic_orbit_banner.png'}" alt="${escapeHtml(c.title)}" onerror="this.onerror=null;this.src='/cosmic_orbit_banner.png';" />
+              <img src="${DEFAULT_BANNER}" data-thumb-src="${c.thumbnailUrl || ''}" alt="${escapeHtml(c.title)}" />
               <span class="clip-views">${Icons.eye} ${c.viewCount || 0}</span>
               ${c.durationSeconds ? `<span style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.8);padding:2px 8px;border-radius:4px;font-size:11px;">${Math.round(c.durationSeconds)}s</span>` : ''}
             </div>
@@ -616,6 +617,7 @@ async function renderClipsTab(container) {
         <button id="clip-next-page" class="btn btn-ghost btn-sm" ${clipPage>=totalPages?'disabled':''}>${Icons.chevronRight}</button>
       </div>
     `;
+    attachMediaImages(container);
 
     document.getElementById('refresh-clips-admin-btn')?.addEventListener('click', () => loadTabContent());
     document.getElementById('clip-prev-page')?.addEventListener('click', () => { if (clipPage > 1) { clipPage--; loadTabContent(); } });

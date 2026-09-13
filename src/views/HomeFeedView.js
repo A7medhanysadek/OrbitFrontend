@@ -1,7 +1,8 @@
-﻿import { store } from '../state/store.js';
+import { store } from '../state/store.js';
 import { streamApi } from '../api/stream.js';
 import { categoryApi } from '../api/category.js';
 import { Icons } from '../components/CosmicIcons.js';
+import { DEFAULT_BANNER, attachMediaImages } from '../utils/mediaImage.js';
 
 let selectedCat = null;
 
@@ -123,7 +124,7 @@ export function setupHomeFeedEvents() {
       grid.innerHTML = streams.map((s, i) => `
         <div class="card stream-card hover-lift stagger-item" data-sid="${s.id}">
           <div class="stream-thumb">
-            <img src="${s.thumbnailUrl || '/cosmic_orbit_banner.png'}" alt="${s.title}" />
+            <img src="${DEFAULT_BANNER}" data-thumb-src="${s.thumbnailUrl || ''}" alt="${s.title}" />
             <div style="position:absolute;top:10px;left:10px;display:flex;gap:6px;">
               <span class="badge-live">LIVE</span>
               <span class="badge-viewers">${Icons.eye} ${s.viewerCount || 0}</span>
@@ -142,6 +143,7 @@ export function setupHomeFeedEvents() {
           </div>
         </div>
       `).join('');
+      attachMediaImages(grid);
       grid.querySelectorAll('.stream-card').forEach(card => {
         card.addEventListener('click', () => {
           const id = parseInt(card.dataset.sid);

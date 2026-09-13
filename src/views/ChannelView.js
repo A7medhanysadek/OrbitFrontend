@@ -5,6 +5,7 @@ import { vodApi } from '../api/vod.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { openClipPlayerModal } from './ClipsFeedView.js';
 import { openVodPlayerModal } from '../components/VodPlayerModal.js';
+import { DEFAULT_BANNER, attachMediaImages } from '../utils/mediaImage.js';
 
 let activeTab = 'vods';
 
@@ -105,15 +106,16 @@ async function loadTabContent(channelId) {
       container.innerHTML = `<div class="streams-grid">${vods.map(v => `
         <div class="card vod-card hover-lift" data-vod-id="${v.id || v.streamId}">
           <div class="vod-thumb">
-            <img src="${v.thumbnailUrl || '/cosmic_orbit_banner.png'}" alt="${v.title}" onerror="this.onerror=null;this.src='/cosmic_orbit_banner.png';" />
+            <img src="${DEFAULT_BANNER}" data-thumb-src="${v.thumbnailUrl || ''}" alt="${escapeHtml(v.title || 'VOD')}" />
             <span class="vod-duration">${v.duration || ''}</span>
           </div>
           <div class="vod-info">
-            <div class="vod-title">${v.title || 'Untitled VOD'}</div>
+            <div class="vod-title">${escapeHtml(v.title || 'Untitled VOD')}</div>
             <div class="vod-meta">${v.rewatchCount || 0} views &middot; ${v.chatMessageCount || 0} messages</div>
           </div>
         </div>
       `).join('')}</div>`;
+      attachMediaImages(container);
 
       container.querySelectorAll('.vod-card').forEach(card => {
         card.addEventListener('click', () => {
@@ -132,15 +134,16 @@ async function loadTabContent(channelId) {
       container.innerHTML = `<div class="clips-grid">${clips.map(c => `
         <div class="card clip-card hover-lift" data-clip-id="${c.id}">
           <div class="clip-thumb">
-            <img src="${c.thumbnailUrl || '/cosmic_orbit_banner.png'}" alt="${c.title || 'Clip'}" onerror="this.onerror=null;this.src='/cosmic_orbit_banner.png';" />
+            <img src="${DEFAULT_BANNER}" data-thumb-src="${c.thumbnailUrl || ''}" alt="${escapeHtml(c.title || 'Clip')}" />
             <span class="clip-views">${Icons.eye} ${c.viewCount || 0}</span>
           </div>
           <div class="clip-info">
-            <div class="clip-title">${c.title || 'Untitled'}</div>
-            <div class="clip-meta">by ${c.creatorName || c.creatorUsername || 'Unknown'}</div>
+            <div class="clip-title">${escapeHtml(c.title || 'Untitled')}</div>
+            <div class="clip-meta">by ${escapeHtml(c.creatorName || c.creatorUsername || 'Unknown')}</div>
           </div>
         </div>
       `).join('')}</div><div id="clip-modal-root"></div>`;
+      attachMediaImages(container);
       container.querySelectorAll('.clip-card').forEach(card => {
         card.addEventListener('click', () => {
           const clipId = parseInt(card.dataset.clipId);

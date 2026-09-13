@@ -1,6 +1,7 @@
-﻿import { store } from '../state/store.js';
+import { store } from '../state/store.js';
 import { authApi } from '../api/auth.js';
 import { Icons } from '../components/CosmicIcons.js';
+import { ORBIT_LOGO } from '../utils/mediaImage.js';
 
 export function renderLoginView() {
   return `
@@ -17,7 +18,7 @@ export function renderLoginView() {
       <div class="auth-container animate-fade-up">
         <div class="auth-hero">
           <div class="auth-logo-group">
-            <img src="/Orbit_logo.png" alt="Orbit" />
+            <img src="${ORBIT_LOGO}" alt="Orbit" />
             <span class="logo-text">RBIT</span>
           </div>
           <p class="auth-tagline">Stream Across the Galaxy</p>

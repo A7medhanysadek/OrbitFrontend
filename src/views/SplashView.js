@@ -1,5 +1,6 @@
-﻿import { store } from '../state/store.js';
+import { store } from '../state/store.js';
 import { Icons } from '../components/CosmicIcons.js';
+import { ORBIT_LOGO } from '../utils/mediaImage.js';
 
 export function renderSplashView() {
   return `
@@ -19,7 +20,7 @@ export function renderSplashView() {
 
       <div style="position:relative;z-index:2;text-align:center;" class="animate-fade-up">
         <div class="auth-logo-group" style="justify-content:center;margin-bottom:24px;">
-          <img src="/Orbit_logo.png" alt="Orbit" style="height:120px;" />
+          <img src="${ORBIT_LOGO}" alt="Orbit" style="height:120px;" />
           <span class="logo-text" style="font-size:72px;">RBIT</span>
         </div>
         <p class="auth-tagline" style="font-size:24px;margin-bottom:48px;">Stream Across the Galaxy</p>
