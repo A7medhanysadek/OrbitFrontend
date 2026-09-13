@@ -1,0 +1,19 @@
+﻿@media (max-width: 1200px) {
+  .streams-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .app-content { padding: 20px; }
+}
+@media (max-width: 900px) {
+  .app-sidebar { width: var(--sidebar-collapsed); }
+  .app-sidebar .nav-label, .app-sidebar .sidebar-section, .app-sidebar .logo-text, .app-sidebar .user-info { display: none; }
+  .app-main { margin-left: var(--sidebar-collapsed); }
+  .auth-container { flex-direction: column; max-width: 500px; }
+  .auth-hero { min-height: 200px; padding: 32px; }
+  .studio-sidebar { width: 60px; }
+  .studio-sidebar-btn .tab-label { display: none; }
+}
+@media (max-width: 600px) {
+  .app-sidebar { display: none; }
+  .app-main { margin-left: 0; }
+  .streams-grid { grid-template-columns: 1fr; }
+  .categories-grid { grid-template-columns: repeat(2, 1fr); }
+}
