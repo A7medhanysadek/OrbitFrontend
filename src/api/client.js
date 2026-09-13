@@ -1,5 +1,5 @@
-// Base API Client connecting to https://orbit.tryasp.net
-export const API_BASE = 'https://orbit.tryasp.net';
+// Base API Client connecting to https://orbit.tryasp.net (overridable via localStorage.orbit_api_base)
+export const API_BASE = (typeof window !== 'undefined' && window.localStorage && localStorage.getItem('orbit_api_base')) || 'https://orbit.tryasp.net';
 
 export function getAuthToken() {
   return localStorage.getItem('orbit_access_token');
@@ -92,16 +92,30 @@ export async function apiClient(endpoint, options = {}) {
       const refreshRes = await fetch(`${API_BASE}/api/Auth/refresh-token`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ refreshToken: getRefreshToken() })
       });
       if (refreshRes.ok) {
         const refreshData = await refreshRes.json();
-        setTokens(refreshData.token || refreshData.accessToken, refreshData.refreshToken);
+        const newAccessToken = refreshData.accessToken || refreshData.token;
+        const newRefreshToken = refreshData.refreshToken;
+        setTokens(newAccessToken, newRefreshToken);
+
+        const currentUser = getCurrentUser();
+        if (currentUser) {
+          const roles = extractRolesFromToken(newAccessToken);
+          if (roles.length) currentUser.roles = roles;
+          currentUser.accessToken = newAccessToken;
+          setCurrentUser(currentUser);
+        }
+
         options._retry = true;
-        return apiClient(endpoint, options);
+        const retryHeaders = {
+          ...headers,
+          'Authorization': `Bearer ${newAccessToken}`
+        };
+        return apiClient(endpoint, { ...options, headers: retryHeaders });
       }
     } catch (e) {
       console.warn('Failed to refresh token', e);

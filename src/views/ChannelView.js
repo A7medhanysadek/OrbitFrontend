@@ -4,6 +4,7 @@ import { clipApi } from '../api/clip.js';
 import { vodApi } from '../api/vod.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { openClipPlayerModal } from './ClipsFeedView.js';
+import { openVodPlayerModal } from '../components/VodPlayerModal.js';
 
 let activeTab = 'vods';
 
@@ -104,7 +105,7 @@ async function loadTabContent(channelId) {
       container.innerHTML = `<div class="streams-grid">${vods.map(v => `
         <div class="card vod-card hover-lift" data-vod-id="${v.id || v.streamId}">
           <div class="vod-thumb">
-            <img src="${v.thumbnailUrl || '/cosmic_orbit_banner.png'}" alt="${v.title}" />
+            <img src="${v.thumbnailUrl || '/cosmic_orbit_banner.png'}" alt="${v.title}" onerror="this.onerror=null;this.src='/cosmic_orbit_banner.png';" />
             <span class="vod-duration">${v.duration || ''}</span>
           </div>
           <div class="vod-info">
@@ -113,6 +114,16 @@ async function loadTabContent(channelId) {
           </div>
         </div>
       `).join('')}</div>`;
+
+      container.querySelectorAll('.vod-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const vid = parseInt(card.dataset.vodId);
+          const target = vods.find(x => (x.id === vid || x.streamId === vid));
+          if (target) {
+            openVodPlayerModal(target);
+          }
+        });
+      });
     } catch (e) { container.innerHTML = '<p class="text-muted text-center">Failed to load VODs</p>'; }
   } else if (activeTab === 'clips') {
     try {

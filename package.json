@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@microsoft/signalr": "^8.0.7",
-    "hls.js": "^1.5.17"
+    "hls.js": "^1.5.17",
+    "mpegts.js": "^1.8.2"
   },
   "devDependencies": {
     "vite": "^5.4.8"

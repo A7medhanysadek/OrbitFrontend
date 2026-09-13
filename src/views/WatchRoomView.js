@@ -1,12 +1,13 @@
-﻿import { store } from '../state/store.js';
+import { store } from '../state/store.js';
 import { streamApi } from '../api/stream.js';
 import { channelApi } from '../api/channel.js';
 import { clipApi } from '../api/clip.js';
 import { Icons } from '../components/CosmicIcons.js';
-import { API_BASE, getAuthToken } from '../api/client.js';
+import { API_BASE, getAuthToken, getCurrentUser } from '../api/client.js';
 import * as signalR from '@microsoft/signalr';
 
 let chatConnection = null;
+let activeHls = null;
 
 export function renderWatchRoomView() {
   const stream = store.getState().activeStream;
@@ -15,11 +16,15 @@ export function renderWatchRoomView() {
     <div style="display:flex;gap:0;margin:-24px;min-height:calc(100vh - var(--topbar-height));">
       <!-- Video + Info -->
       <div style="flex:1;display:flex;flex-direction:column;">
-        <div class="player-wrapper" id="player-container" style="border-radius:0;aspect-ratio:16/9;background:#000;">
-          <video id="stream-video" style="width:100%;height:100%;" autoplay></video>
+        <div class="player-wrapper" id="player-container" style="position:relative;border-radius:0;aspect-ratio:16/9;background:#000;">
+          <video id="stream-video" style="width:100%;height:100%;background:#000;" autoplay playsinline></video>
+          <button id="player-unmute-btn" style="display:none;position:absolute;bottom:20px;left:20px;z-index:10;background:rgba(4,7,18,0.85);border:1px solid rgba(0,242,254,0.4);color:var(--color-cyan-neon);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;align-items:center;gap:6px;backdrop-filter:blur(6px);">
+            ${Icons.volume} Click to Unmute
+          </button>
           <div id="player-offline" class="hidden" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg-gradient-card);flex-direction:column;gap:12px;">
             <div style="font-size:48px;">&#128752;</div>
             <h3 style="font-family:var(--font-display);color:var(--color-cyan-neon);">Stream Offline</h3>
+            <p style="color:var(--color-text-muted);font-size:13px;margin:0;">The broadcaster is not currently streaming.</p>
           </div>
         </div>
         <div style="padding:20px;">
@@ -32,7 +37,8 @@ export function renderWatchRoomView() {
                 <span class="badge-category">${stream?.categoryName || 'General'}</span>
               </div>
             </div>
-            <div style="display:flex;gap:8px;">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button id="watch-end-stream-btn" class="btn btn-danger btn-sm" style="display:none;">${Icons.x} End Stream</button>
               <button id="watch-clip-btn" class="btn btn-outline btn-sm">${Icons.clip} Clip</button>
               <button id="watch-follow-btn" class="btn btn-cyan btn-sm follow-btn not-following">${Icons.follow} Follow</button>
             </div>
@@ -68,52 +74,41 @@ export function setupWatchRoomEvents() {
   const streamId = params?.streamId;
   const stream = store.getState().activeStream;
 
-  // Load stream details
-  if (streamId && !stream) {
+  const onStreamReady = (s) => {
+    if (!s) return;
+    store.setActiveStream(s);
+    updateStreamUI(s);
+    initPlayer(s);
+    initChat(s.channelId, s.id);
+    setupFollowBtn(s);
+    setupBroadcasterControls(s);
+  };
+
+  // Load stream details if missing or mismatch
+  if (streamId && (!stream || stream.id !== parseInt(streamId))) {
     streamApi.getStreamById(streamId).then(s => {
-      store.setActiveStream(s);
-      updateStreamUI(s);
-    }).catch(() => {});
-  } else if (stream) {
-    updateStreamUI(stream);
-  }
-
-  // Init HLS player
-  initPlayer(stream);
-
-  // Init SignalR chat
-  initChat(stream?.channelId, streamId);
-
-  // Follow button
-  const followBtn = document.getElementById('watch-follow-btn');
-  if (followBtn && stream) {
-    const isFollowing = store.isFollowing(stream.channelId);
-    followBtn.className = `btn btn-sm follow-btn ${isFollowing ? 'following' : 'not-following'}`;
-    followBtn.innerHTML = isFollowing ? `${Icons.followFilled} Following` : `${Icons.follow} Follow`;
-    followBtn.addEventListener('click', () => {
-      if (store.isFollowing(stream.channelId)) {
-        store.unfollowChannel(stream.channelId);
-        followBtn.className = 'btn btn-sm follow-btn not-following';
-        followBtn.innerHTML = `${Icons.follow} Follow`;
-      } else {
-        store.followChannel(stream.channelId, stream.streamerName || stream.channelName);
-        followBtn.className = 'btn btn-sm follow-btn following';
-        followBtn.innerHTML = `${Icons.followFilled} Following`;
-        store.showToast(`Following ${stream.streamerName}!`, 'success');
-      }
+      onStreamReady(s);
+    }).catch(err => {
+      console.warn('Could not load stream details:', err);
+      document.getElementById('player-offline')?.classList.remove('hidden');
     });
+  } else if (stream) {
+    onStreamReady(stream);
   }
 
   // Clip button
   document.getElementById('watch-clip-btn')?.addEventListener('click', () => {
-    if (!streamId) return;
-    store.openModal('slice', { streamId, channelId: stream?.channelId });
-    showSliceModal(streamId, stream?.channelId);
+    const activeS = store.getState().activeStream;
+    const sid = streamId || activeS?.id;
+    if (!sid) return;
+    store.openModal('slice', { streamId: sid, channelId: activeS?.channelId });
+    showSliceModal(sid, activeS?.channelId);
   });
 
   // Channel info click
   document.getElementById('watch-channel-info')?.addEventListener('click', () => {
-    if (stream?.channelId) store.navigate('channel', { channelId: stream.channelId });
+    const activeS = store.getState().activeStream;
+    if (activeS?.channelId) store.navigate('channel', { channelId: activeS.channelId });
   });
 
   // Chat send
@@ -131,30 +126,153 @@ export function setupWatchRoomEvents() {
   }
 }
 
+function setupFollowBtn(stream) {
+  const followBtn = document.getElementById('watch-follow-btn');
+  if (!followBtn || !stream?.channelId) return;
+
+  const isFollowing = store.isFollowing(stream.channelId);
+  followBtn.className = `btn btn-sm follow-btn ${isFollowing ? 'following' : 'not-following'}`;
+  followBtn.innerHTML = isFollowing ? `${Icons.followFilled} Following` : `${Icons.follow} Follow`;
+  followBtn.onclick = () => {
+    if (store.isFollowing(stream.channelId)) {
+      store.unfollowChannel(stream.channelId);
+      followBtn.className = 'btn btn-sm follow-btn not-following';
+      followBtn.innerHTML = `${Icons.follow} Follow`;
+    } else {
+      store.followChannel(stream.channelId, stream.streamerName || stream.channelName);
+      followBtn.className = 'btn btn-sm follow-btn following';
+      followBtn.innerHTML = `${Icons.followFilled} Following`;
+      store.showToast(`Following ${stream.streamerName || 'streamer'}!`, 'success');
+    }
+  };
+}
+
+function setupBroadcasterControls(stream) {
+  const endBtn = document.getElementById('watch-end-stream-btn');
+  if (!endBtn) return;
+
+  const currentUser = getCurrentUser();
+  const isOwner = currentUser && stream && (
+    stream.streamerId === currentUser.id ||
+    stream.streamerName === currentUser.fullName ||
+    stream.channelId === currentUser.channelId
+  );
+
+  if (isOwner) {
+    endBtn.style.display = 'inline-flex';
+    endBtn.onclick = async () => {
+      if (!confirm('Are you sure you want to end your live stream?')) return;
+      try {
+        await streamApi.endStream();
+        store.showToast('Live stream ended.', 'info');
+        endBtn.style.display = 'none';
+        if (activeHls) {
+          activeHls.destroy();
+          activeHls = null;
+        }
+        document.getElementById('player-offline')?.classList.remove('hidden');
+      } catch (err) {
+        store.showToast(err.message || 'Failed to end stream', 'error');
+      }
+    };
+  } else {
+    endBtn.style.display = 'none';
+  }
+}
+
 function updateStreamUI(s) {
   const title = document.getElementById('watch-title');
   const streamer = document.getElementById('watch-streamer');
-  if (title) title.textContent = s.title;
+  const viewers = document.getElementById('watch-viewers');
+  const avatar = document.getElementById('watch-avatar');
+  if (title) title.textContent = s.title || 'Live Stream';
   if (streamer) streamer.innerHTML = `${s.streamerName || 'Streamer'} ${Icons.checkCircle}`;
+  if (viewers) viewers.innerHTML = `${Icons.eye} ${s.viewerCount || 0} viewers`;
+  if (avatar) avatar.textContent = (s.streamerName || 'S')[0].toUpperCase();
 }
 
 async function initPlayer(stream) {
-  if (!stream?.hlsUrl) return;
+  if (!stream?.hlsUrl) {
+    document.getElementById('player-offline')?.classList.remove('hidden');
+    return;
+  }
+
   const video = document.getElementById('stream-video');
   if (!video) return;
+
+  if (activeHls) {
+    activeHls.destroy();
+    activeHls = null;
+  }
+
+  const offlineEl = document.getElementById('player-offline');
+  const unmuteBtn = document.getElementById('player-unmute-btn');
+
+  // Modern browsers require muted for unprompted autoplay
+  video.muted = true;
+  video.playsInline = true;
+
+  if (unmuteBtn) {
+    unmuteBtn.style.display = 'flex';
+    unmuteBtn.onclick = () => {
+      video.muted = false;
+      unmuteBtn.style.display = 'none';
+    };
+  }
+
   try {
     const Hls = (await import('hls.js')).default;
     if (Hls.isSupported()) {
-      const hls = new Hls();
+      const hls = new Hls({
+        xhrSetup: (xhr) => {
+          // Bypass ngrok free tier browser warning interstitial
+          xhr.setRequestHeader('ngrok-skip-browser-warning', 'true');
+        },
+        enableWorker: true,
+        lowLatencyMode: true,
+        backBufferLength: 60
+      });
+
+      activeHls = hls;
       hls.loadSource(stream.hlsUrl);
       hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        offlineEl?.classList.add('hidden');
+        video.play().catch(e => {
+          console.warn('[WatchRoom] Autoplay blocked, click video or unmute to play', e);
+        });
+      });
+
       hls.on(Hls.Events.ERROR, (_, data) => {
-        if (data.fatal) document.getElementById('player-offline')?.classList.remove('hidden');
+        if (data.fatal) {
+          console.warn('[WatchRoom] HLS fatal error:', data.type, data.details);
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hls.recoverMediaError();
+              break;
+            default:
+              offlineEl?.classList.remove('hidden');
+              hls.destroy();
+              activeHls = null;
+              break;
+          }
+        }
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = stream.hlsUrl;
+      video.addEventListener('loadedmetadata', () => {
+        offlineEl?.classList.add('hidden');
+        video.play().catch(() => {});
+      });
     }
-  } catch (e) { console.warn('HLS init failed', e); }
+  } catch (e) {
+    console.warn('[WatchRoom] HLS init failed', e);
+    offlineEl?.classList.remove('hidden');
+  }
 }
 
 async function initChat(channelId, streamId) {

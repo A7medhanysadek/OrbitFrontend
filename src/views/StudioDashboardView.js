@@ -3,10 +3,12 @@ import { channelApi } from '../api/channel.js';
 import { streamApi } from '../api/stream.js';
 import { dashboardApi } from '../api/dashboard.js';
 import { Icons } from '../components/CosmicIcons.js';
+import { openVodPlayerModal } from '../components/VodPlayerModal.js';
 
 let studioTab = 'overview';
 let channelData = null;
 let hasChannel = false;
+let authError = false;
 
 export function renderStudioDashboardView() {
   const user = store.getState().currentUser;
@@ -45,16 +47,36 @@ export function setupStudioDashboardEvents() {
 }
 
 async function initStudio() {
+  authError = false;
   try {
     channelData = await channelApi.getMyChannel();
-    hasChannel = true;
-  } catch (e) { hasChannel = false; }
+    hasChannel = !!channelData;
+  } catch (e) {
+    if (e.status === 401) {
+      authError = true;
+      hasChannel = false;
+    } else {
+      hasChannel = false;
+    }
+  }
   renderWorkspace();
 }
 
 async function renderWorkspace() {
   const ws = document.getElementById('studio-workspace');
   if (!ws) return;
+
+  if (authError) {
+    ws.innerHTML = `
+      <div class="empty-state" style="max-width:500px;margin:40px auto;">
+        <div class="empty-icon">&#128274;</div>
+        <h3>Session Expired</h3>
+        <p>Your session has expired. Please log in again to manage your channel.</p>
+        <button id="ws-relogin-btn" class="btn btn-cyan">Log In</button>
+      </div>`;
+    document.getElementById('ws-relogin-btn')?.addEventListener('click', () => store.navigate('login'));
+    return;
+  }
 
   if (!hasChannel && studioTab !== 'channel') {
     ws.innerHTML = `
@@ -372,25 +394,79 @@ async function loadLiveManager() {
   if (!section) return;
   try {
     const live = await dashboardApi.getLiveManager();
-    if (!live) { section.innerHTML = '<div class="card" style="padding:20px;text-align:center;color:var(--color-text-muted);">You are currently offline. Create a stream session and start broadcasting!</div>'; return; }
+    if (!live) {
+      section.innerHTML = '<div class="card" style="padding:20px;text-align:center;color:var(--color-text-muted);">You are currently offline. Create a stream session and start broadcasting!</div>';
+      return;
+    }
+
+    const isLive = live.isLive;
+    const badgeHtml = isLive
+      ? '<span class="badge-live" style="font-size:14px;padding:4px 14px;">LIVE</span>'
+      : '<span style="font-size:12px;padding:4px 12px;border-radius:12px;background:rgba(245,158,11,0.15);color:#f59e0b;font-weight:700;border:1px solid rgba(245,158,11,0.4);">READY (WAITING FOR OBS)</span>';
+
+    const endBtnText = isLive ? `${Icons.x} End Stream` : `${Icons.x} Cancel Session`;
+    const borderColor = isLive ? 'var(--color-live-red)' : 'rgba(245,158,11,0.4)';
+    const statusText = isLive ? 'Broadcasting live to viewers' : 'Stream session ready &bull; Click "Start Streaming" in OBS to go live';
+
     section.innerHTML = `
-      <div class="card" style="padding:24px;border-color:var(--color-live-red);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <div style="display:flex;align-items:center;gap:12px;"><span class="badge-live" style="font-size:14px;padding:4px 14px;">LIVE</span><h3 style="font-size:18px;">${live.title || 'Broadcasting'}</h3></div>
-          <button id="end-stream-btn" class="btn btn-danger btn-sm">${Icons.x} End Stream</button>
+      <div class="card" style="padding:24px;border-color:${borderColor};">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            ${badgeHtml}
+            <div>
+              <h3 style="font-size:18px;margin:0 0 2px 0;">${live.title || 'Broadcasting'}</h3>
+              <div style="font-size:12px;color:var(--color-text-muted);">${statusText}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            ${isLive ? `<button id="studio-view-live-btn" class="btn btn-outline btn-sm">${Icons.eye} Open Watch Room</button>` : ''}
+            <button id="end-stream-btn" class="btn btn-danger btn-sm">${endBtnText}</button>
+          </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
-          <div class="stat-card"><div class="stat-label">Viewers</div><div class="stat-value">${live.viewerCount || 0}</div></div>
-          <div class="stat-card"><div class="stat-label">Duration</div><div class="stat-value">${live.duration || '0:00'}</div></div>
-          <div class="stat-card"><div class="stat-label">Chat Messages</div><div class="stat-value">${live.chatMessageCount || 0}</div></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px;">
+          <div class="stat-card">
+            <div class="stat-label">Viewers</div>
+            <div class="stat-value">${live.currentViewerCount || live.viewerCount || 0}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Duration</div>
+            <div class="stat-value">${isLive ? (live.formattedUptime || live.duration || '0:00') : '00:00'}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Status</div>
+            <div class="stat-value" style="font-size:16px;color:${isLive ? '#10b981' : '#f59e0b'};">
+              ${isLive ? 'Active' : 'Pending OBS'}
+            </div>
+          </div>
         </div>
       </div>
     `;
-    document.getElementById('end-stream-btn')?.addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to end the stream?')) return;
-      try { await dashboardApi.endStream(); store.showToast('Stream ended.', 'info'); loadLiveManager(); } catch (e) { store.showToast(e.message, 'error'); }
+
+    document.getElementById('studio-view-live-btn')?.addEventListener('click', () => {
+      if (live.streamId) store.navigate('watch', { streamId: live.streamId });
     });
-  } catch (e) { section.innerHTML = ''; }
+
+    document.getElementById('end-stream-btn')?.addEventListener('click', async () => {
+      const confirmMsg = isLive
+        ? 'Are you sure you want to end your active live broadcast?'
+        : 'Are you sure you want to cancel this pending stream session?';
+      if (!confirm(confirmMsg)) return;
+
+      const btn = document.getElementById('end-stream-btn');
+      if (btn) btn.disabled = true;
+      try {
+        await dashboardApi.endStream();
+        store.showToast(isLive ? 'Stream ended successfully.' : 'Pending session cancelled.', 'info');
+        loadLiveManager();
+      } catch (e) {
+        store.showToast(e.message || 'Failed to end stream', 'error');
+        if (btn) btn.disabled = false;
+      }
+    });
+  } catch (e) {
+    console.warn('[Studio] loadLiveManager error', e);
+    section.innerHTML = '';
+  }
 }
 
 async function renderAnalytics(ws) {
@@ -420,7 +496,10 @@ async function renderVods(ws) {
   try {
     const pastStreams = await dashboardApi.getPastStreams(1, 20);
     const streams = Array.isArray(pastStreams) ? pastStreams : pastStreams?.items || [];
-    if (!streams.length) { ws.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128249;</div><h3>No Past Streams</h3><p>Your broadcast archive is empty.</p></div>'; return; }
+    if (!streams.length) {
+      ws.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128249;</div><h3>No Past Streams</h3><p>Your broadcast archive is empty.</p></div>';
+      return;
+    }
     ws.innerHTML = `
       <h2 style="font-family:var(--font-display);color:var(--color-cyan-neon);margin-bottom:24px;">${Icons.archive} Broadcast Archive</h2>
       <table class="data-table">
@@ -429,20 +508,44 @@ async function renderVods(ws) {
           <tr>
             <td style="font-weight:500;">${s.title || 'Untitled'}</td>
             <td style="color:var(--color-text-muted);">${s.startedAt ? new Date(s.startedAt).toLocaleDateString() : '-'}</td>
-            <td>${s.duration || '-'}</td>
+            <td>${s.formattedDuration || s.duration || '-'}</td>
             <td>${s.peakViewers || 0}</td>
-            <td>${s.vodId ? `<button class="btn btn-ghost btn-sm" data-del-vod="${s.vodId}">${Icons.trash}</button>` : '-'}</td>
+            <td style="white-space:nowrap;">
+              <button class="btn btn-outline btn-sm" data-play-vod="${s.id || s.vodId}" style="margin-right:8px;padding:4px 10px;">
+                ${Icons.play} Watch
+              </button>
+              ${s.vodId || s.id ? `<button class="btn btn-ghost btn-sm" data-del-vod="${s.vodId || s.id}" title="Delete VOD" style="color:#ef4444;">${Icons.trash}</button>` : ''}
+            </td>
           </tr>
         `).join('')}</tbody>
       </table>
     `;
-    ws.querySelectorAll('[data-del-vod]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (!confirm('Delete this VOD?')) return;
-        try { await dashboardApi.deleteVod(parseInt(btn.dataset.delVod)); store.showToast('VOD deleted', 'info'); renderVods(ws); } catch (e) { store.showToast(e.message, 'error'); }
+
+    ws.querySelectorAll('[data-play-vod]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const vid = parseInt(btn.dataset.playVod);
+        const target = streams.find(x => (x.id === vid || x.vodId === vid));
+        if (target) {
+          openVodPlayerModal(target);
+        }
       });
     });
-  } catch (e) { ws.innerHTML = '<div class="empty-state"><h3>Failed to load archives</h3></div>'; }
+
+    ws.querySelectorAll('[data-del-vod]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this VOD from your channel archive?')) return;
+        try {
+          await dashboardApi.deleteVod(parseInt(btn.dataset.delVod));
+          store.showToast('VOD deleted', 'info');
+          renderVods(ws);
+        } catch (e) {
+          store.showToast(e.message, 'error');
+        }
+      });
+    });
+  } catch (e) {
+    ws.innerHTML = '<div class="empty-state"><h3>Failed to load archives</h3></div>';
+  }
 }
 
 async function renderModeration(ws) {
