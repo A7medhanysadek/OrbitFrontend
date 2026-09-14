@@ -393,7 +393,9 @@ async function renderBroadcast(ws) {
   const statusEl = document.getElementById('streaming-server-status');
   if (statusEl) {
     try {
-      const healthRes = await fetch('http://localhost:8080/health', { method: 'GET', mode: 'cors' });
+      const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+      const healthUrl = isHttps ? 'https://localhost:8443/health' : 'http://localhost:8080/health';
+      const healthRes = await fetch(healthUrl, { method: 'GET', mode: 'cors' });
       if (healthRes.ok) {
         statusEl.innerHTML = `
           <span style="width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 8px #10b981;"></span>
