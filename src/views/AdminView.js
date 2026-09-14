@@ -6,6 +6,7 @@ import { openClipPlayerModal } from './ClipsFeedView.js';
 import { openVodPlayerModal } from '../components/VodPlayerModal.js';
 import { openImageCropperModal } from '../components/ImageCropperModal.js';
 import { DEFAULT_BANNER, attachMediaImages } from '../utils/mediaImage.js';
+import { fetchMediaConfig } from '../utils/mediaConfig.js';
 
 let currentTab = 'overview';
 let userPage = 1;
@@ -962,6 +963,7 @@ async function renderMediaServerTab(container) {
       }
       try {
         await adminApi.setMediaServerUrls(rtmp, hls);
+        await fetchMediaConfig(true);
         store.showToast('Media server URLs updated successfully!', 'success');
         loadTabContent();
       } catch (err) {
@@ -973,6 +975,7 @@ async function renderMediaServerTab(container) {
       if (!confirm('Reset media server URLs to local development defaults?')) return;
       try {
         await adminApi.clearMediaServerUrls();
+        await fetchMediaConfig(true);
         store.showToast('Reset to default media server URLs', 'info');
         loadTabContent();
       } catch (err) {

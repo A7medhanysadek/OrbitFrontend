@@ -2,6 +2,8 @@
 // Provides robust loading of images and thumbnails served via ngrok or media server,
 // bypassing ngrok free-tier HTML warning pages (ERR_NGROK_6024) via blob streaming.
 
+import { resolveMediaUrl } from './mediaConfig.js';
+
 export const BASE_PATH = import.meta.env.BASE_URL || './';
 export const ORBIT_LOGO = BASE_PATH.endsWith('/') ? `${BASE_PATH}Orbit_logo.png` : `${BASE_PATH}/Orbit_logo.png`;
 export const DEFAULT_BANNER = BASE_PATH.endsWith('/') ? `${BASE_PATH}cosmic_orbit_banner.png` : `${BASE_PATH}/cosmic_orbit_banner.png`;
@@ -32,12 +34,14 @@ export async function loadMediaImage(imgElement, originalUrl, fallback = DEFAULT
     return;
   }
 
-  const isNgrok = originalUrl.includes('ngrok-free.dev') || originalUrl.includes('ngrok.io');
-  const isLocalhost = originalUrl.includes('localhost:') || originalUrl.includes('127.0.0.1:');
+  // Resolve media server / clips / recordings URLs dynamically
+  const targetUrl = resolveMediaUrl(originalUrl);
+  const isNgrok = targetUrl.includes('ngrok-free.dev') || targetUrl.includes('ngrok.io');
+  const isLocalhost = targetUrl.includes('localhost:') || targetUrl.includes('127.0.0.1:');
 
   // External CDNs (Cloudinary, ImgBB, etc.) can be loaded directly
-  if (!isNgrok && !isLocalhost) {
-    imgElement.src = originalUrl;
+  if (!isNgrok && !isLocalhost && !targetUrl.includes('/clips/') && !targetUrl.includes('/recordings/')) {
+    imgElement.src = targetUrl;
     imgElement.onerror = () => {
       imgElement.onerror = null;
       imgElement.src = fallback;
@@ -46,6 +50,10 @@ export async function loadMediaImage(imgElement, originalUrl, fallback = DEFAULT
   }
 
   // Check in-memory cache
+  if (blobCache.has(targetUrl)) {
+    imgElement.src = blobCache.get(targetUrl);
+    return;
+  }
   if (blobCache.has(originalUrl)) {
     imgElement.src = blobCache.get(originalUrl);
     return;
@@ -54,16 +62,12 @@ export async function loadMediaImage(imgElement, originalUrl, fallback = DEFAULT
   // Show fallback while downloading
   imgElement.src = fallback;
 
-  // Resolve relative/localhost to ngrok if on HTTPS
-  let targetUrl = originalUrl;
-  if (window.location.protocol === 'https:' && targetUrl.startsWith('http://localhost:8080/')) {
-    targetUrl = targetUrl.replace('http://localhost:8080/', 'https://unwound-overlook-boat.ngrok-free.dev/');
-  }
-
   try {
-    const res = await fetch(targetUrl, {
-      headers: { 'ngrok-skip-browser-warning': 'true' }
-    });
+    const fetchOptions = {};
+    if (isNgrok) {
+      fetchOptions.headers = { 'ngrok-skip-browser-warning': 'true' };
+    }
+    const res = await fetch(targetUrl, fetchOptions);
 
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);

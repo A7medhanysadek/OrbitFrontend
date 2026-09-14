@@ -8,42 +8,9 @@ let activePlayer = null;
 let activeModal = null;
 let activeBlobUrl = null;
 
-// Media base URLs for ngrok & fallback public streaming
-export const NGROK_CLIPS_BASE = 'https://unwound-overlook-boat.ngrok-free.dev/clips';
-export const NGROK_RECORDINGS_BASE = 'https://unwound-overlook-boat.ngrok-free.dev/recordings';
+import { resolveMediaUrl, getClipsBaseUrl, getRecordingsBaseUrl } from '../utils/mediaConfig.js';
 
-/**
- * Resolves a media URL, ensuring that on HTTPS hosts (like GitHub Pages)
- * insecure HTTP/localhost URLs are rewritten to the active public HTTPS ngrok tunnel.
- */
-export function resolveMediaUrl(rawUrl) {
-  if (!rawUrl) return '';
-  let url = rawUrl.trim();
-  const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
-
-  // Override via localStorage if configured during development
-  const customMediaBase = typeof window !== 'undefined' && localStorage.getItem('orbit_clips_base');
-  const targetClipsBase = customMediaBase || NGROK_CLIPS_BASE;
-
-  if (url.includes('/clips/')) {
-    const fileName = url.substring(url.lastIndexOf('/clips/') + 7);
-    if (isHttpsPage || url.includes('localhost') || url.startsWith('http://')) {
-      return `${targetClipsBase}/${fileName}`;
-    }
-  } else if (url.includes('/recordings/')) {
-    const fileName = url.substring(url.lastIndexOf('/recordings/') + 12);
-    if (isHttpsPage || url.includes('localhost') || url.startsWith('http://')) {
-      return `${NGROK_RECORDINGS_BASE}/${fileName}`;
-    }
-  }
-
-  // Prevent mixed content on HTTPS
-  if (isHttpsPage && url.startsWith('http://') && !url.includes('localhost')) {
-    url = url.replace('http://', 'https://');
-  }
-
-  return url;
-}
+export { resolveMediaUrl, getClipsBaseUrl, getRecordingsBaseUrl };
 
 export async function openClipPlayerModal(clip, onClipDeleted = null) {
   closeClipPlayerModal();

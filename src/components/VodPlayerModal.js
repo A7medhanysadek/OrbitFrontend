@@ -3,6 +3,7 @@ import { Icons } from './CosmicIcons.js';
 import { vodApi } from '../api/vod.js';
 import { store } from '../state/store.js';
 import { getSessionId } from '../utils/session.js';
+import { resolveMediaUrl } from '../utils/mediaConfig.js';
 
 let activePlayer = null;
 let activeModal = null;
@@ -175,10 +176,11 @@ export async function openVodPlayerModal(vod) {
   }
 
   const rawUrl = vodDetails.vodUrl || vodDetails.url || vod.vodUrl || vod.url;
+  const resolvedUrl = resolveMediaUrl(rawUrl);
   const directLink = modal.querySelector('#vod-direct-link');
   const downloadBtn = modal.querySelector('#vod-download-btn');
-  if (directLink && rawUrl) directLink.href = rawUrl;
-  if (downloadBtn && rawUrl) downloadBtn.href = rawUrl;
+  if (directLink && resolvedUrl) directLink.href = resolvedUrl;
+  if (downloadBtn && resolvedUrl) downloadBtn.href = resolvedUrl;
 
   const video = modal.querySelector('#vod-video');
   const spinner = modal.querySelector('#vod-loading-spinner');
@@ -186,7 +188,7 @@ export async function openVodPlayerModal(vod) {
   const errorMsg = modal.querySelector('#vod-error-msg');
   const formatBadge = modal.querySelector('#vod-modal-format');
 
-  if (!rawUrl) {
+  if (!resolvedUrl) {
     if (spinner) spinner.style.display = 'none';
     if (errorBox) {
       errorBox.style.display = 'flex';
@@ -195,8 +197,8 @@ export async function openVodPlayerModal(vod) {
     return;
   }
 
-  const isFlv = rawUrl.toLowerCase().includes('.flv');
-  const isMp4 = rawUrl.toLowerCase().includes('.mp4');
+  const isFlv = resolvedUrl.toLowerCase().includes('.flv');
+  const isMp4 = resolvedUrl.toLowerCase().includes('.mp4');
   if (formatBadge) formatBadge.textContent = isFlv ? 'FLV STREAM' : (isMp4 ? 'MP4 VIDEO' : 'VOD');
 
   // Initialize playback
@@ -205,7 +207,7 @@ export async function openVodPlayerModal(vod) {
       // Use mpegts.js for FLV video decoding with ngrok-skip-browser-warning
       const flvPlayer = mpegts.createPlayer({
         type: 'flv',
-        url: rawUrl,
+        url: resolvedUrl,
         isLive: false,
         cors: true
       }, {
@@ -239,7 +241,7 @@ export async function openVodPlayerModal(vod) {
       // For MP4 or direct browser video:
       // When accessed through ngrok, if native video tag fails, we notify with direct VLC button
       if (spinner) spinner.style.display = 'none';
-      video.src = rawUrl;
+      video.src = resolvedUrl;
       video.load();
       video.play().catch(() => {});
 

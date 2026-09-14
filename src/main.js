@@ -1,4 +1,5 @@
-﻿import { store } from './state/store.js';
+import { store } from './state/store.js';
+import { fetchMediaConfig } from './utils/mediaConfig.js';
 import { renderSidebar, renderTopbar, setupNavEvents } from './components/Navbar.js';
 import { renderSplashView, setupSplashEvents } from './views/SplashView.js';
 import { renderLoginView, setupLoginEvents } from './views/LoginView.js';
@@ -71,4 +72,5 @@ function renderApp() {
 
 store.subscribe(() => renderApp());
 renderApp();
+fetchMediaConfig().catch(err => console.warn('Media server config init:', err));
 console.log('Orbit Desktop Platform Ready');
