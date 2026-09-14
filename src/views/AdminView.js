@@ -928,7 +928,7 @@ async function renderMediaServerTab(container) {
                 <span class="input-icon" style="color:var(--color-cyan-primary);margin-right:8px;">${Icons.play}</span>
                 <input class="input-dark" id="admin-media-hls" type="text" value="${escapeHtml(cfg.effectiveHlsBaseUrl || '')}" placeholder="e.g. https://cdn.orbit.live/hls" required style="width:100%;background:transparent;border:none;color:#fff;padding:10px 0;" />
               </div>
-              <span style="font-size:11px;color:var(--color-text-muted);margin-top:4px;display:block;">Default: <code>http://localhost:8080/hls</code> (Stream manifest URL format: <code>{hlsBaseUrl}/{streamKey}.m3u8</code>)</span>
+              <span style="font-size:11px;color:var(--color-text-muted);margin-top:4px;display:block;">Default: <code>https://localhost:8443/hls</code> (Secure HTTPS) or <code>http://localhost:8080/hls</code> (HTTP). (Format: <code>{hlsBaseUrl}/{streamKey}.m3u8</code>)</span>
               <div style="font-size:12px;color:var(--color-cyan-neon,#00f2fe);margin-top:8px;padding:8px 12px;background:rgba(0,242,254,0.06);border:1px solid rgba(0,242,254,0.15);border-radius:6px;display:flex;flex-direction:column;gap:4px;">
                 <div>Clips Base URL: <strong style="color:#fff;">${escapeHtml(cfg.clipsBaseUrl || (cfg.effectiveHlsBaseUrl ? cfg.effectiveHlsBaseUrl.replace('/hls', '/clips') : 'http://localhost:8080/clips'))}</strong></div>
                 <div>Recordings (VOD) Base URL: <strong style="color:#fff;">${escapeHtml(cfg.recordingsBaseUrl || (cfg.effectiveHlsBaseUrl ? cfg.effectiveHlsBaseUrl.replace('/hls', '/recordings') : 'http://localhost:8080/recordings'))}</strong></div>

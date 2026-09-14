@@ -21,11 +21,11 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
 
   // Record view asynchronously with session deduplication
   if (clip.id) {
-    clipApi.recordView(clip.id, getSessionId()).catch(() => {});
+    clipApi.recordView(clip.id, getSessionId()).catch(() => { });
   }
 
   // Ensure latest media config from server
-  await fetchMediaConfig().catch(() => {});
+  await fetchMediaConfig().catch(() => { });
 
   const rawUrl = clip.videoUrl || clip.url || '';
   let resolvedUrl = resolveMediaUrl(rawUrl);
@@ -156,8 +156,8 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
             flex-shrink: 0;
           ">
             ${clip.creatorProfilePictureUrl
-              ? `<img src="${clip.creatorProfilePictureUrl}" style="width:100%;height:100%;object-fit:cover;" />`
-              : (clip.creatorName || clip.creatorUsername || 'C')[0].toUpperCase()}
+      ? `<img src="${clip.creatorProfilePictureUrl}" style="width:100%;height:100%;object-fit:cover;" />`
+      : (clip.creatorName || clip.creatorUsername || 'C')[0].toUpperCase()}
           </div>
           <div style="min-width: 0;">
             <div style="font-size: 14px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
@@ -273,7 +273,7 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
   retryBtn?.addEventListener('click', async () => {
     if (errorBox) errorBox.style.display = 'none';
     if (spinner) spinner.style.display = 'flex';
-    await fetchMediaConfig(true).catch(() => {});
+    await fetchMediaConfig(true).catch(() => { });
     resolvedUrl = resolveMediaUrl(rawUrl);
     const directLink = modal.querySelector('#clip-direct-link');
     const downloadBtn = modal.querySelector('#clip-download-btn');
@@ -358,7 +358,7 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
           if (spinner) spinner.style.display = 'none';
         }, { once: true });
 
-        flvPlayer.play().catch(() => {});
+        flvPlayer.play().catch(() => { });
       } else {
         // MP4 playback
         const isNgrok = resolvedUrl.includes('ngrok');
@@ -384,12 +384,12 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
               if (spinner) spinner.style.display = 'none';
             }, { once: true });
 
-            video.play().catch(() => {});
+            video.play().catch(() => { });
           } catch (fetchErr) {
             console.warn('[ClipPlayer] Blob fetch failed, falling back to direct src:', fetchErr);
             video.src = resolvedUrl;
             video.load();
-            video.play().catch(() => {});
+            video.play().catch(() => { });
           }
         } else {
           video.src = resolvedUrl;
@@ -397,7 +397,7 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
           video.addEventListener('canplay', () => {
             if (spinner) spinner.style.display = 'none';
           }, { once: true });
-          video.play().catch(() => {});
+          video.play().catch(() => { });
         }
 
         video.addEventListener('error', (e) => {
@@ -431,14 +431,14 @@ export function closeClipPlayerModal() {
       activePlayer.unload();
       activePlayer.detachMediaElement();
       activePlayer.destroy();
-    } catch (e) {}
+    } catch (e) { }
     activePlayer = null;
   }
 
   if (activeBlobUrl) {
     try {
       URL.revokeObjectURL(activeBlobUrl);
-    } catch (e) {}
+    } catch (e) { }
     activeBlobUrl = null;
   }
 
@@ -449,7 +449,7 @@ export function closeClipPlayerModal() {
         video.pause();
         video.removeAttribute('src');
         video.load();
-      } catch (e) {}
+      } catch (e) { }
     }
     activeModal.remove();
     activeModal = null;

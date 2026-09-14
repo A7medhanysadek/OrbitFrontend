@@ -258,6 +258,13 @@ async function initPlayer(stream) {
     return;
   }
 
+  let hlsSource = stream.hlsUrl;
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    hlsSource = hlsSource
+      .replace('http://localhost:8080', 'https://localhost:8443')
+      .replace('http://127.0.0.1:8080', 'https://localhost:8443');
+  }
+
   const video = document.getElementById('stream-video');
   if (!video) return;
 
@@ -293,7 +300,7 @@ async function initPlayer(stream) {
       });
 
       activeHls = hls;
-      hls.loadSource(stream.hlsUrl);
+      hls.loadSource(hlsSource);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -322,7 +329,7 @@ async function initPlayer(stream) {
         }
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = stream.hlsUrl;
+      video.src = hlsSource;
       video.addEventListener('loadedmetadata', () => {
         offlineEl?.classList.add('hidden');
         video.play().catch(() => {});

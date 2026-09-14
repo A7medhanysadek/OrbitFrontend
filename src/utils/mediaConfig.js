@@ -3,10 +3,12 @@ import { API_BASE, apiClient } from '../api/client.js';
 let cachedConfig = null;
 let fetchPromise = null;
 
-const DEFAULT_LOCAL_CLIPS = 'http://localhost:8080/clips';
-const DEFAULT_LOCAL_RECORDINGS = 'http://localhost:8080/recordings';
-const DEFAULT_LOCAL_HLS = 'http://localhost:8080/hls';
-const DEFAULT_LOCAL_RTMP = 'rtmp://localhost:1935/live';
+const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
+export const DEFAULT_LOCAL_CLIPS = isHttps ? 'https://localhost:8443/clips' : 'http://localhost:8080/clips';
+export const DEFAULT_LOCAL_RECORDINGS = isHttps ? 'https://localhost:8443/recordings' : 'http://localhost:8080/recordings';
+export const DEFAULT_LOCAL_HLS = isHttps ? 'https://localhost:8443/hls' : 'http://localhost:8080/hls';
+export const DEFAULT_LOCAL_RTMP = 'rtmp://localhost:1935/live';
 
 const LEGACY_DEAD_HOSTS = ['unwound-overlook-boat.ngrok-free.dev'];
 
@@ -36,12 +38,10 @@ function purgeLegacyStorage() {
   } catch (e) {}
 }
 
-// Purge legacy storage immediately on module evaluation
 purgeLegacyStorage();
 
 /**
  * Initialize / fetch the media server configuration from the backend config endpoint.
- * Always fetches from the server on startup so updates on the server are picked up immediately.
  */
 export async function fetchMediaConfig(forceRefresh = false) {
   if (cachedConfig && cachedConfig._fetchedFromServer && !forceRefresh) {
@@ -55,14 +55,25 @@ export async function fetchMediaConfig(forceRefresh = false) {
     try {
       const cfg = await apiClient('/api/Stream/server/config');
       if (cfg) {
+        let hls = cfg.effectiveHlsBaseUrl || cfg.hlsBaseUrl || DEFAULT_LOCAL_HLS;
+        let clips = cfg.clipsBaseUrl || (cfg.hlsBaseUrl ? cfg.hlsBaseUrl.replace(/\/hls\/?$/, '/clips') : DEFAULT_LOCAL_CLIPS);
+        let recordings = cfg.recordingsBaseUrl || (cfg.hlsBaseUrl ? cfg.hlsBaseUrl.replace(/\/hls\/?$/, '/recordings') : DEFAULT_LOCAL_RECORDINGS);
+
+        // When running on HTTPS, upgrade http://localhost:8080 to https://localhost:8443 automatically
+        if (isHttps) {
+          hls = hls.replace('http://localhost:8080', 'https://localhost:8443').replace('http://127.0.0.1:8080', 'https://localhost:8443');
+          clips = clips.replace('http://localhost:8080', 'https://localhost:8443').replace('http://127.0.0.1:8080', 'https://localhost:8443');
+          recordings = recordings.replace('http://localhost:8080', 'https://localhost:8443').replace('http://127.0.0.1:8080', 'https://localhost:8443');
+        }
+
         cachedConfig = {
           _fetchedFromServer: true,
           isConfigured: !!cfg.isConfigured,
           isCustomConfigured: !!cfg.isCustomConfigured,
           rtmpUrl: cfg.effectiveRtmpUrl || cfg.rtmpUrl || DEFAULT_LOCAL_RTMP,
-          hlsBaseUrl: cfg.effectiveHlsBaseUrl || cfg.hlsBaseUrl || DEFAULT_LOCAL_HLS,
-          clipsBaseUrl: cfg.clipsBaseUrl || (cfg.hlsBaseUrl ? cfg.hlsBaseUrl.replace(/\/hls\/?$/, '/clips') : DEFAULT_LOCAL_CLIPS),
-          recordingsBaseUrl: cfg.recordingsBaseUrl || (cfg.hlsBaseUrl ? cfg.hlsBaseUrl.replace(/\/hls\/?$/, '/recordings') : DEFAULT_LOCAL_RECORDINGS),
+          hlsBaseUrl: hls,
+          clipsBaseUrl: clips,
+          recordingsBaseUrl: recordings,
           message: cfg.message || ''
         };
 
@@ -77,7 +88,6 @@ export async function fetchMediaConfig(forceRefresh = false) {
       fetchPromise = null;
     }
 
-    // Attempt localStorage cache if valid and not legacy
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         const stored = localStorage.getItem('orbit_media_config');
@@ -94,7 +104,6 @@ export async function fetchMediaConfig(forceRefresh = false) {
       } catch (e) {}
     }
 
-    // Default local fallback
     cachedConfig = {
       _fetchedFromServer: false,
       isConfigured: false,
@@ -117,7 +126,6 @@ export async function fetchMediaConfig(forceRefresh = false) {
 export function getMediaConfig() {
   if (cachedConfig) return cachedConfig;
 
-  // Try synchronous retrieval from localStorage
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       const stored = localStorage.getItem('orbit_media_config');
@@ -145,6 +153,16 @@ export function getMediaConfig() {
   };
 }
 
+function upgradeLocalUrlForHttps(url) {
+  if (!url) return '';
+  if (isHttps) {
+    return url
+      .replace('http://localhost:8080', 'https://localhost:8443')
+      .replace('http://127.0.0.1:8080', 'https://localhost:8443');
+  }
+  return url;
+}
+
 /**
  * Get active clips base URL (respects manual localStorage override if set and valid).
  */
@@ -152,11 +170,12 @@ export function getClipsBaseUrl() {
   if (typeof window !== 'undefined' && window.localStorage) {
     const override = localStorage.getItem('orbit_clips_base');
     if (override && !LEGACY_DEAD_HOSTS.some(d => override.includes(d))) {
-      return override.replace(/\/+$/, '');
+      return upgradeLocalUrlForHttps(override.replace(/\/+$/, ''));
     }
   }
   const cfg = getMediaConfig();
-  return (cfg.clipsBaseUrl || DEFAULT_LOCAL_CLIPS).replace(/\/+$/, '');
+  const base = cfg.clipsBaseUrl || DEFAULT_LOCAL_CLIPS;
+  return upgradeLocalUrlForHttps(base.replace(/\/+$/, ''));
 }
 
 /**
@@ -166,11 +185,12 @@ export function getRecordingsBaseUrl() {
   if (typeof window !== 'undefined' && window.localStorage) {
     const override = localStorage.getItem('orbit_recordings_base');
     if (override && !LEGACY_DEAD_HOSTS.some(d => override.includes(d))) {
-      return override.replace(/\/+$/, '');
+      return upgradeLocalUrlForHttps(override.replace(/\/+$/, ''));
     }
   }
   const cfg = getMediaConfig();
-  return (cfg.recordingsBaseUrl || DEFAULT_LOCAL_RECORDINGS).replace(/\/+$/, '');
+  const base = cfg.recordingsBaseUrl || DEFAULT_LOCAL_RECORDINGS;
+  return upgradeLocalUrlForHttps(base.replace(/\/+$/, ''));
 }
 
 /**
@@ -180,20 +200,21 @@ export function getHlsBaseUrl() {
   if (typeof window !== 'undefined' && window.localStorage) {
     const override = localStorage.getItem('orbit_hls_base');
     if (override && !LEGACY_DEAD_HOSTS.some(d => override.includes(d))) {
-      return override.replace(/\/+$/, '');
+      return upgradeLocalUrlForHttps(override.replace(/\/+$/, ''));
     }
   }
   const cfg = getMediaConfig();
-  return (cfg.hlsBaseUrl || DEFAULT_LOCAL_HLS).replace(/\/+$/, '');
+  const base = cfg.hlsBaseUrl || DEFAULT_LOCAL_HLS;
+  return upgradeLocalUrlForHttps(base.replace(/\/+$/, ''));
 }
 
 /**
  * Checks whether the given media URL will be blocked by browser Mixed Content policies.
+ * Note: https://localhost:8443 is HTTPS, so it is NOT mixed content.
  */
 export function isMixedContentMedia(url) {
   if (!url) return false;
-  const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
-  if (!isHttpsPage) return false;
+  if (!isHttps) return false;
   return url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1');
 }
 
@@ -201,13 +222,22 @@ export function isMixedContentMedia(url) {
  * Resolves any media URL (clip, thumbnail, or VOD recording) to use the
  * active media server base URL from the backend config endpoint.
  *
+ * Automatically upgrades plaintext http://localhost:8080 to https://localhost:8443
+ * when Orbit is loaded over HTTPS.
+ *
  * @param {string|null} rawUrl
  * @returns {string}
  */
 export function resolveMediaUrl(rawUrl) {
   if (!rawUrl) return '';
   let url = rawUrl.trim();
-  const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
+  // Upgrade local media URLs on HTTPS pages
+  if (isHttps) {
+    url = url
+      .replace('http://localhost:8080', 'https://localhost:8443')
+      .replace('http://127.0.0.1:8080', 'https://localhost:8443');
+  }
 
   const clipsBase = getClipsBaseUrl();
   const recordingsBase = getRecordingsBaseUrl();
@@ -225,7 +255,7 @@ export function resolveMediaUrl(rawUrl) {
   }
 
   // Prevent mixed content warnings on HTTPS pages for remote domains (e.g. CDNs)
-  if (isHttpsPage && url.startsWith('http://') && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+  if (isHttps && url.startsWith('http://') && !url.includes('localhost') && !url.includes('127.0.0.1')) {
     url = url.replace('http://', 'https://');
   }
 
