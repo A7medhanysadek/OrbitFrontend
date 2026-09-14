@@ -2,6 +2,7 @@ import mpegts from 'mpegts.js';
 import { Icons } from './CosmicIcons.js';
 import { clipApi } from '../api/clip.js';
 import { store } from '../state/store.js';
+import { getSessionId } from '../utils/session.js';
 
 let activePlayer = null;
 let activeModal = null;
@@ -52,9 +53,9 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
   const isAdmin = user?.roles?.includes?.('Admin');
   const isOwner = user && (user.userId === clip.creatorId || user.id === clip.creatorId);
 
-  // Record view asynchronously
+  // Record view asynchronously with session deduplication
   if (clip.id) {
-    clipApi.recordView(clip.id).catch(() => {});
+    clipApi.recordView(clip.id, getSessionId()).catch(() => {});
   }
 
   const rawUrl = clip.videoUrl || clip.url || '';

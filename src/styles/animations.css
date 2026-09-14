@@ -1,4 +1,4 @@
-﻿/* Orbit Animations */
+/* Orbit Animations */
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse-live { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -61,3 +61,167 @@
 .hover-glow:hover { box-shadow: var(--shadow-neon); }
 .hover-scale { transition: transform var(--transition-fast); }
 .hover-scale:hover { transform: scale(1.03); }
+
+/* ── Cosmic Space Concepts & Planetary Animations ── */
+@keyframes nebula-pulse {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(1) translate(0, 0);
+    filter: blur(50px);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.08) translate(-10px, 8px);
+    filter: blur(60px);
+  }
+}
+
+@keyframes celestial-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes celestial-spin-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes live-beacon {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 0, 85, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 0, 85, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 0, 85, 0);
+  }
+}
+
+@keyframes stardust-float {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translateY(-16px) translateX(8px);
+    opacity: 0.9;
+  }
+}
+
+@keyframes orbit-planet-path {
+  0% {
+    transform: rotate(0deg) translateX(44px) rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg) translateX(44px) rotate(-360deg);
+  }
+}
+
+.cosmic-beacon {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-live-red, #ff0055);
+  animation: live-beacon 1.8s infinite;
+  flex-shrink: 0;
+}
+
+.orbit-avatar-ring {
+  position: relative;
+  border-radius: 50%;
+  padding: 3px;
+  background: linear-gradient(135deg, var(--color-cyan-neon, #00f2fe), var(--color-cyan-primary, #00aebd), rgba(255, 0, 85, 0.6));
+  background-size: 200% 200%;
+  animation: celestial-spin 6s linear infinite;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.orbit-avatar-ring-inner {
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-space-deep, #070a14);
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Kick-Style Hero Carousel Layout & Styling ── */
+.kick-hero-carousel {
+  position: relative;
+  border-radius: 16px;
+  background: radial-gradient(circle at 80% 20%, rgba(0, 242, 254, 0.12), transparent 45%),
+              radial-gradient(circle at 20% 80%, rgba(121, 40, 202, 0.15), transparent 50%),
+              var(--color-space-panel, #0f1424);
+  border: 1px solid rgba(0, 242, 254, 0.2);
+  overflow: hidden;
+  margin-bottom: 32px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.kick-hero-main {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  min-height: 420px;
+}
+
+@media (max-width: 960px) {
+  .kick-hero-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kick-hero-preview {
+  position: relative;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.kick-hero-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.kick-hero-preview:hover img {
+  transform: scale(1.03);
+}
+
+.kick-hero-details {
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: linear-gradient(180deg, rgba(15, 20, 36, 0.95), rgba(7, 10, 20, 0.98));
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.kick-hero-nav-pills {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.kick-hero-nav-pill {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  padding: 0;
+}
+
+.kick-hero-nav-pill.active {
+  background: var(--color-cyan-neon, #00f2fe);
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.8);
+  transform: scale(1.25);
+}

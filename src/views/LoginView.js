@@ -19,14 +19,14 @@ export function renderLoginView() {
         <div class="auth-hero">
           <div class="auth-logo-group">
             <img src="${ORBIT_LOGO}" alt="Orbit" />
-            <span class="logo-text">RBIT</span>
+            <span class="logo-text">rbit</span>
           </div>
           <p class="auth-tagline">Stream Across the Galaxy</p>
         </div>
 
         <div class="auth-form-panel">
           <h2>Stream Across the Galaxy</h2>
-          <p class="auth-subtitle">Enter your registered email to receive a reset link.</p>
+          <p class="auth-subtitle">Welcome back! Sign in to continue your cosmic journey.</p>
 
           <form id="login-form">
             <div class="form-group">
@@ -56,10 +56,10 @@ export function renderLoginView() {
             </div>
 
             <div class="social-divider">or continue with</div>
-            <div class="social-buttons">
-              <div class="social-btn">${Icons.google}</div>
-              <div class="social-btn">${Icons.facebook}</div>
-              <div class="social-btn">${Icons.apple}</div>
+            <div class="social-buttons" style="justify-content:center;">
+              <button type="button" id="google-login-btn" class="social-btn" title="Sign in with Google" style="width:100%;height:44px;border-radius:24px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;font-weight:600;color:#333;background:#fff;border:1px solid #ddd;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.06);">
+                ${Icons.google} <span>Continue with Google</span>
+              </button>
             </div>
           </form>
         </div>
@@ -96,5 +96,22 @@ export function setupLoginEvents() {
     } catch (err) {
       store.showToast(err.message || 'Login failed', 'error');
     } finally { btn.disabled = false; btn.textContent = 'Login'; }
+  });
+
+  document.getElementById('google-login-btn')?.addEventListener('click', async () => {
+    // Prompt or trigger Google OAuth Sign-In
+    const clientId = localStorage.getItem('orbit_google_client_id');
+    const credential = prompt('Enter Google ID Token or Credential (or test token):', '');
+    if (!credential) return;
+
+    try {
+      store.showToast('Authenticating with Google...', 'info');
+      const res = await authApi.googleLogin(credential);
+      store.setCurrentUser(res);
+      store.showToast('Welcome to Orbit!', 'success');
+      store.navigate('home');
+    } catch (err) {
+      store.showToast(err.message || 'Google authentication failed', 'error');
+    }
   });
 }

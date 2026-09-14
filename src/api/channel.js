@@ -13,4 +13,7 @@ export const channelApi = {
   getModerators: () => apiClient('/api/Channel/moderators'),
   toggleSaveStreams: (val) => apiClient('/api/Channel/save-streams', { method: 'PUT', body: JSON.stringify({ saveStreams: val }) }),
   search: (query) => apiClient(`/api/Channel/search?q=${encodeURIComponent(query)}`),
+  toggleFollow: (channelId) => apiClient(`/api/Channel/${channelId}/follow`, { method: 'POST' }),
+  isFollowing: (channelId) => apiClient(`/api/Channel/${channelId}/following`),
+  getFollowedChannels: () => apiClient('/api/Channel/following'),
 };

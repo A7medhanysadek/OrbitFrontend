@@ -3,12 +3,15 @@ import { adminApi } from '../api/admin.js';
 import { categoryApi } from '../api/category.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { openClipPlayerModal } from './ClipsFeedView.js';
+import { openVodPlayerModal } from '../components/VodPlayerModal.js';
+import { openImageCropperModal } from '../components/ImageCropperModal.js';
 import { DEFAULT_BANNER, attachMediaImages } from '../utils/mediaImage.js';
 
 let currentTab = 'overview';
 let userPage = 1;
 let channelPage = 1;
 let clipPage = 1;
+let vodPage = 1;
 let userSearch = '';
 let userRoleFilter = '';
 let channelSearch = '';
@@ -55,7 +58,9 @@ export function renderAdminView() {
         <button class="tab-btn ${currentTab==='channels'?'active':''}" data-admin-tab="channels">${Icons.video} Channels</button>
         <button class="tab-btn ${currentTab==='streams'?'active':''}" data-admin-tab="streams"><span style="color:var(--color-live-red);">&#9679;</span> Live Moderation</button>
         <button class="tab-btn ${currentTab==='clips'?'active':''}" data-admin-tab="clips">${Icons.clip} Clips</button>
+        <button class="tab-btn ${currentTab==='vods'?'active':''}" data-admin-tab="vods">${Icons.video} VOD Archives</button>
         <button class="tab-btn ${currentTab==='categories'?'active':''}" data-admin-tab="categories">${Icons.star} Categories</button>
+        <button class="tab-btn ${currentTab==='media-server'?'active':''}" data-admin-tab="media-server">${Icons.settings} Media Server</button>
       </div>
 
       <!-- Active Tab Container -->
@@ -107,8 +112,14 @@ async function loadTabContent() {
     case 'clips':
       await renderClipsTab(container);
       break;
+    case 'vods':
+      await renderVodsTab(container);
+      break;
     case 'categories':
       await renderCategoriesTab(container);
+      break;
+    case 'media-server':
+      await renderMediaServerTab(container);
       break;
   }
 }
@@ -249,7 +260,7 @@ async function renderUsersTab(container) {
                 </td>
                 <td>
                   <div style="display:flex;gap:6px;">
-                    <button class="btn btn-ghost btn-sm btn-edit-roles" data-uid="${u.id}" data-roles="${(u.roles||[]).join(',')}" title="Manage Roles">
+                    <button class="btn btn-ghost btn-sm btn-edit-roles" data-uid="${u.id}" data-roles="${(u.roles||[]).join(',')}" data-uname="${escapeHtml(u.username || 'User')}" title="Manage Roles">
                       ${Icons.settings} Roles
                     </button>
                     <button class="btn btn-ghost btn-sm btn-toggle-lock" data-uid="${u.id}" data-locked="${u.isLockedOut}" style="color:${u.isLockedOut?'var(--color-success)':'var(--color-warning)'};" title="${u.isLockedOut?'Unlock':'Lock'}">
@@ -315,7 +326,7 @@ async function renderUsersTab(container) {
 
     // Actions
     container.querySelectorAll('.btn-edit-roles').forEach(btn => {
-      btn.addEventListener('click', () => openRolesModal(btn.dataset.uid, (btn.dataset.roles || '').split(',').filter(Boolean)));
+      btn.addEventListener('click', () => openRolesModal(btn.dataset.uid, (btn.dataset.roles || '').split(',').filter(Boolean), btn.dataset.uname));
     });
 
     container.querySelectorAll('.btn-toggle-lock').forEach(btn => {
@@ -652,7 +663,116 @@ async function renderClipsTab(container) {
 }
 
 // ──────────────────────────────────────────
-// 6. CATEGORIES TAB
+// 6. VOD ARCHIVES TAB
+// ──────────────────────────────────────────
+async function renderVodsTab(container) {
+  try {
+    const res = await adminApi.getVods(vodPage, 15);
+    const vods = res.items || [];
+    const totalCount = res.totalCount || 0;
+    const totalPages = Math.ceil(totalCount / 15) || 1;
+
+    container.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+        <h3 style="margin:0;font-size:18px;">VOD Archives Management (${totalCount} Total)</h3>
+        <button id="refresh-vods-btn" class="btn btn-ghost btn-sm">${Icons.refresh} Refresh</button>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:70px;">Preview</th>
+              <th>Broadcast Title</th>
+              <th>Streamer / Channel</th>
+              <th>Duration</th>
+              <th>Views</th>
+              <th>Chat Messages</th>
+              <th>Recorded At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${vods.map(v => `
+              <tr data-vod-row="${v.id}">
+                <td>
+                  <div style="width:60px;height:36px;border-radius:6px;overflow:hidden;background:#000;position:relative;">
+                    <img src="${DEFAULT_BANNER}" data-thumb-src="${v.thumbnailUrl || ''}" style="width:100%;height:100%;object-fit:cover;" alt="" />
+                  </div>
+                </td>
+                <td style="font-weight:600;color:#fff;">${escapeHtml(v.title || 'Untitled Broadcast')}</td>
+                <td>
+                  <span style="color:var(--color-cyan-neon,#00f2fe);">${escapeHtml(v.streamerName || v.channelName || 'Streamer')}</span>
+                </td>
+                <td style="color:var(--color-text-muted);">${v.duration || '-'}</td>
+                <td>${v.rewatchCount || 0}</td>
+                <td style="color:var(--color-text-muted);">${v.chatMessageCount || 0} msgs</td>
+                <td style="color:var(--color-text-muted);font-size:12px;">${v.startedAt ? new Date(v.startedAt).toLocaleDateString() : '-'}</td>
+                <td>
+                  <div style="display:flex;gap:6px;">
+                    <button class="btn btn-outline btn-sm btn-watch-vod" data-vid="${v.id}" style="padding:4px 10px;">
+                      ${Icons.play} Watch
+                    </button>
+                    <button class="btn btn-ghost btn-sm btn-del-vod" data-vid="${v.id}" style="color:var(--color-error);" title="Delete VOD">
+                      ${Icons.trash}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+            ${!vods.length ? '<tr><td colspan="8" style="text-align:center;padding:36px;color:var(--color-text-muted);">No recorded VODs found on the platform.</td></tr>' : ''}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination">
+        <button id="vod-prev-page" class="btn btn-ghost btn-sm" ${vodPage<=1?'disabled':''}>${Icons.chevronLeft}</button>
+        <span style="color:var(--color-text-muted);font-size:14px;">Page ${vodPage} of ${totalPages} (${totalCount} VODs)</span>
+        <button id="vod-next-page" class="btn btn-ghost btn-sm" ${vodPage>=totalPages?'disabled':''}>${Icons.chevronRight}</button>
+      </div>
+    `;
+
+    attachMediaImages(container);
+
+    document.getElementById('refresh-vods-btn')?.addEventListener('click', () => loadTabContent());
+
+    document.getElementById('vod-prev-page')?.addEventListener('click', () => {
+      if (vodPage > 1) { vodPage--; loadTabContent(); }
+    });
+    document.getElementById('vod-next-page')?.addEventListener('click', () => {
+      if (vodPage < totalPages) { vodPage++; loadTabContent(); }
+    });
+
+    container.querySelectorAll('.btn-watch-vod').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const vid = parseInt(btn.dataset.vid);
+        const target = vods.find(x => x.id === vid);
+        if (target) openVodPlayerModal(target);
+      });
+    });
+
+    container.querySelectorAll('.btn-del-vod').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const vid = parseInt(btn.dataset.vid);
+        if (!confirm('Permanently delete this VOD and its recorded chat replay from the system?')) return;
+        try {
+          await adminApi.deleteVod(vid);
+          store.showToast('VOD deleted successfully', 'info');
+          loadTabContent();
+        } catch (err) {
+          store.showToast(err.message || 'Failed to delete VOD', 'error');
+        }
+      });
+    });
+
+  } catch (e) {
+    container.innerHTML = '<p class="text-muted">Failed to load VOD archives.</p>';
+  }
+}
+
+// ──────────────────────────────────────────
+// 7. CATEGORIES TAB
 // ──────────────────────────────────────────
 async function renderCategoriesTab(container) {
   try {
@@ -740,13 +860,21 @@ async function renderCategoriesTab(container) {
     container.querySelectorAll('[data-cat-img]').forEach(input => {
       input.addEventListener('change', async (e) => {
         if (e.target.files && e.target.files[0]) {
-          try {
-            await categoryApi.uploadImage(parseInt(input.dataset.catImg), e.target.files[0]);
-            store.showToast('Category image uploaded!', 'success');
-            loadTabContent();
-          } catch (err) {
-            store.showToast(err.message || 'Failed to upload image', 'error');
-          }
+          const file = e.target.files[0];
+          const catId = parseInt(input.dataset.catImg);
+          openImageCropperModal(file, {
+            aspectRatio: 3 / 4,
+            title: 'Crop Category Cover (3:4)'
+          }, async (croppedFile) => {
+            try {
+              await categoryApi.uploadImage(catId, croppedFile);
+              store.showToast('Category image uploaded!', 'success');
+              loadTabContent();
+            } catch (err) {
+              store.showToast(err.message || 'Failed to upload image', 'error');
+            }
+          });
+          input.value = '';
         }
       });
     });
@@ -756,16 +884,117 @@ async function renderCategoriesTab(container) {
 }
 
 // ──────────────────────────────────────────
+// 8. MEDIA SERVER INGEST & PLAYBACK TAB
+// ──────────────────────────────────────────
+async function renderMediaServerTab(container) {
+  try {
+    const cfg = await adminApi.getMediaServerConfig();
+    const isCustom = cfg.isCustomConfigured;
+    container.innerHTML = `
+      <div style="max-width:800px;">
+        <div class="card" style="padding:28px;margin-bottom:24px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+            <div>
+              <h3 style="color:#fff;font-size:18px;margin:0;display:flex;align-items:center;gap:8px;">
+                ${Icons.settings} Media Server Streaming Ingest & Playback
+              </h3>
+              <p style="color:var(--color-text-muted);font-size:13px;margin:4px 0 0 0;">
+                Configure the RTMP broadcast ingest endpoint and HLS playback base URLs used for live streaming across the platform.
+              </p>
+            </div>
+            <span class="badge" style="background:${isCustom ? 'rgba(0,242,254,0.15)' : 'rgba(255,255,255,0.08)'};color:${isCustom ? 'var(--color-cyan-primary)' : 'var(--color-text-muted)'};border:1px solid ${isCustom ? 'rgba(0,242,254,0.3)' : 'rgba(255,255,255,0.1)'};padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;">
+              ${isCustom ? 'Custom URLs Active' : 'Default URLs Active'}
+            </span>
+          </div>
+
+          <form id="admin-media-server-form" style="display:flex;flex-direction:column;gap:18px;">
+            <div class="form-group">
+              <label style="display:block;font-size:13px;font-weight:600;color:var(--color-text-muted);margin-bottom:6px;">
+                RTMP Ingest Server URL (used by OBS, Streamlabs, vMix)
+              </label>
+              <div class="input-wrapper" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:2px 12px;display:flex;align-items:center;">
+                <span class="input-icon" style="color:var(--color-cyan-primary);margin-right:8px;">${Icons.video}</span>
+                <input class="input-dark" id="admin-media-rtmp" type="text" value="${escapeHtml(cfg.effectiveRtmpUrl || '')}" placeholder="e.g. rtmp://stream.orbit.live/live" required style="width:100%;background:transparent;border:none;color:#fff;padding:10px 0;" />
+              </div>
+              <span style="font-size:11px;color:var(--color-text-muted);margin-top:4px;display:block;">Default: <code>rtmp://localhost/live</code></span>
+            </div>
+
+            <div class="form-group">
+              <label style="display:block;font-size:13px;font-weight:600;color:var(--color-text-muted);margin-bottom:6px;">
+                HLS Playback Base URL (HTTP / HTTPS live video delivery)
+              </label>
+              <div class="input-wrapper" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:2px 12px;display:flex;align-items:center;">
+                <span class="input-icon" style="color:var(--color-cyan-primary);margin-right:8px;">${Icons.play}</span>
+                <input class="input-dark" id="admin-media-hls" type="text" value="${escapeHtml(cfg.effectiveHlsBaseUrl || '')}" placeholder="e.g. https://cdn.orbit.live/hls" required style="width:100%;background:transparent;border:none;color:#fff;padding:10px 0;" />
+              </div>
+              <span style="font-size:11px;color:var(--color-text-muted);margin-top:4px;display:block;">Default: <code>http://localhost:8080/hls</code> (Stream manifest URL format: <code>{hlsBaseUrl}/{streamKey}.m3u8</code>)</span>
+            </div>
+
+            <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;">
+              <button type="button" id="admin-media-reset-btn" class="btn btn-ghost btn-sm" style="color:var(--color-text-muted);">
+                Reset to System Defaults
+              </button>
+              <button type="submit" id="admin-media-save-btn" class="btn btn-cyan btn-sm" style="min-width:140px;">
+                Save Configuration
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card" style="padding:20px;background:rgba(0,242,254,0.03);border:1px solid rgba(0,242,254,0.15);">
+          <h4 style="color:var(--color-cyan-primary);margin:0 0 8px 0;font-size:14px;display:flex;align-items:center;gap:6px;">
+            ${Icons.info} Deployment & CDN Notes
+          </h4>
+          <p style="font-size:12px;color:var(--color-text-muted);line-height:1.6;margin:0;">
+            Changing these endpoints will update the stream ingest configuration presented in the Streamer Studio for all broadcast sessions immediately, as well as the HLS manifest endpoints resolved in viewers' web video players. Ensure your RTMP/HLS server or CDN reverse proxy is running and reachable over the specified ports.
+          </p>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('admin-media-server-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const rtmp = document.getElementById('admin-media-rtmp')?.value?.trim();
+      const hls = document.getElementById('admin-media-hls')?.value?.trim();
+      if (!rtmp || !hls) {
+        store.showToast('Please fill in both RTMP and HLS URLs', 'error');
+        return;
+      }
+      try {
+        await adminApi.setMediaServerUrls(rtmp, hls);
+        store.showToast('Media server URLs updated successfully!', 'success');
+        loadTabContent();
+      } catch (err) {
+        store.showToast(err.message || 'Failed to update media server URLs', 'error');
+      }
+    });
+
+    document.getElementById('admin-media-reset-btn')?.addEventListener('click', async () => {
+      if (!confirm('Reset media server URLs to local development defaults?')) return;
+      try {
+        await adminApi.clearMediaServerUrls();
+        store.showToast('Reset to default media server URLs', 'info');
+        loadTabContent();
+      } catch (err) {
+        store.showToast(err.message || 'Failed to reset media server URLs', 'error');
+      }
+    });
+  } catch (err) {
+    container.innerHTML = '<p class="text-muted">Failed to load media server configuration.</p>';
+  }
+}
+
+// ──────────────────────────────────────────
 // MODALS
 // ──────────────────────────────────────────
-function openRolesModal(userId, currentRoles) {
+function openRolesModal(userId, currentRoles, username = '') {
   const root = document.getElementById('admin-modal-root') || document.body;
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.innerHTML = `
     <div class="modal-content" style="max-width:440px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <h3 style="margin:0;font-size:18px;">Manage User Roles</h3>
+        <h3 style="margin:0;font-size:18px;">Manage Roles ${username ? `for @${escapeHtml(username)}` : ''}</h3>
         <button id="close-roles-modal" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">&times;</button>
       </div>
       <p style="font-size:13px;color:var(--color-text-muted);margin-bottom:20px;">

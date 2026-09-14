@@ -2,39 +2,55 @@ import { store } from '../state/store.js';
 import { streamApi } from '../api/stream.js';
 import { channelApi } from '../api/channel.js';
 import { clipApi } from '../api/clip.js';
+import { chatApi } from '../api/chat.js';
+import { moderationApi } from '../api/moderation.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { API_BASE, getAuthToken, getCurrentUser } from '../api/client.js';
 import * as signalR from '@microsoft/signalr';
 
 let chatConnection = null;
 let activeHls = null;
+let currentStreamId = null;
+let currentChannelId = null;
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 export function renderWatchRoomView() {
   const stream = store.getState().activeStream;
+  const currentUser = getCurrentUser();
   const title = stream?.title || 'Loading...';
+
   return `
     <div style="display:flex;gap:0;margin:-24px;min-height:calc(100vh - var(--topbar-height));">
-      <!-- Video + Info -->
-      <div style="flex:1;display:flex;flex-direction:column;">
+      <!-- Video + Info Column -->
+      <div style="flex:1;display:flex;flex-direction:column;overflow-y:auto;min-width:0;">
         <div class="player-wrapper" id="player-container" style="position:relative;border-radius:0;aspect-ratio:16/9;background:#000;">
           <video id="stream-video" style="width:100%;height:100%;background:#000;" autoplay playsinline></video>
-          <button id="player-unmute-btn" style="display:none;position:absolute;bottom:20px;left:20px;z-index:10;background:rgba(4,7,18,0.85);border:1px solid rgba(0,242,254,0.4);color:var(--color-cyan-neon);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;align-items:center;gap:6px;backdrop-filter:blur(6px);">
+          <button id="player-unmute-btn" style="display:none;position:absolute;bottom:20px;left:20px;z-index:10;background:rgba(4,7,18,0.85);border:1px solid rgba(0,242,254,0.4);color:var(--color-cyan-neon,#00f2fe);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;align-items:center;gap:6px;backdrop-filter:blur(6px);">
             ${Icons.volume} Click to Unmute
           </button>
           <div id="player-offline" class="hidden" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg-gradient-card);flex-direction:column;gap:12px;">
             <div style="font-size:48px;">&#128752;</div>
-            <h3 style="font-family:var(--font-display);color:var(--color-cyan-neon);">Stream Offline</h3>
+            <h3 style="font-family:var(--font-display);color:var(--color-cyan-neon,#00f2fe);">Stream Offline</h3>
             <p style="color:var(--color-text-muted);font-size:13px;margin:0;">The broadcaster is not currently streaming.</p>
           </div>
         </div>
+
         <div style="padding:20px;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
             <div>
-              <h2 style="font-size:20px;font-weight:700;margin-bottom:4px;" id="watch-title">${title}</h2>
-              <div style="display:flex;gap:12px;align-items:center;" id="watch-meta">
+              <h2 style="font-size:20px;font-weight:700;margin:0 0 6px;" id="watch-title">${escapeHtml(title)}</h2>
+              <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;" id="watch-meta">
                 <span class="badge-live">LIVE</span>
-                <span class="text-muted" id="watch-viewers">${Icons.eye} ${stream?.viewerCount || 0} viewers</span>
-                <span class="badge-category">${stream?.categoryName || 'General'}</span>
+                <span class="text-muted" id="watch-viewers">${Icons.eye} <span id="viewer-count-num">${stream?.viewerCount || 0}</span> viewers</span>
+                <span class="badge-category">${escapeHtml(stream?.categoryName || 'General')}</span>
               </div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
@@ -43,26 +59,48 @@ export function renderWatchRoomView() {
               <button id="watch-follow-btn" class="btn btn-cyan btn-sm follow-btn not-following">${Icons.follow} Follow</button>
             </div>
           </div>
+
           <div id="watch-channel-info" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--color-space-panel);border-radius:var(--radius-card);border:1px solid rgba(0,174,189,0.12);cursor:pointer;">
             <div style="width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--color-cyan-primary),var(--color-cyan-neon));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:#000;overflow:hidden;" id="watch-avatar">${(stream?.streamerName || 'S')[0].toUpperCase()}</div>
-            <div style="flex:1;">
-              <div style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:6px;" id="watch-streamer">${stream?.streamerName || 'Streamer'} ${Icons.checkCircle}</div>
-              <div style="font-size:13px;color:var(--color-text-muted);" id="watch-desc"></div>
+            <div style="flex:1;overflow:hidden;">
+              <div style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:6px;" id="watch-streamer">
+                <span>${escapeHtml(stream?.streamerName || 'Streamer')}</span> ${Icons.checkCircle}
+              </div>
+              <div style="font-size:13px;color:var(--color-text-muted);" id="watch-desc">Click to visit channel profile</div>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Chat Panel -->
-      <div class="chat-panel" style="width:var(--chat-width);flex-shrink:0;">
-        <div class="chat-header">
-          <span>Stream Chat</span>
-          <span style="font-size:12px;color:var(--color-text-muted);" id="chat-status">Connecting...</span>
+      <div class="chat-panel" style="width:var(--chat-width, 340px);flex-shrink:0;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,0.08);background:var(--color-space-panel, #0f1424);height:calc(100vh - var(--topbar-height));position:relative;">
+        <div class="chat-header" style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.08);">
+          <div style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:#fff;">
+            <span>Stream Chat</span>
+          </div>
+          <span style="font-size:11px;font-weight:600;color:var(--color-text-muted);" id="chat-status">Connecting...</span>
         </div>
-        <div class="chat-messages" id="chat-messages"></div>
-        <div class="chat-input-area">
-          <input type="text" id="chat-input" placeholder="Send a message..." />
-          <button id="chat-send">${Icons.send}</button>
+
+        <div class="chat-messages" id="chat-messages" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:6px;scroll-behavior:smooth;"></div>
+
+        <!-- Floating scroll-to-bottom indicator -->
+        <button id="chat-scroll-bottom" style="display:none;position:absolute;bottom:70px;left:50%;transform:translateX(-50%);background:rgba(0,242,254,0.9);color:#000;font-size:11px;font-weight:700;border:none;border-radius:20px;padding:4px 12px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:5;">
+          &darr; New Messages
+        </button>
+
+        <div class="chat-input-area" style="padding:12px;border-top:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.2);">
+          ${currentUser ? `
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="chat-input" placeholder="Send a message..." maxlength="500" class="input-dark" style="flex:1;height:38px;padding:0 12px;font-size:13px;border-radius:8px;" />
+              <button id="chat-send" class="btn btn-cyan btn-sm" style="height:38px;padding:0 14px;border-radius:8px;">
+                ${Icons.send}
+              </button>
+            </div>
+          ` : `
+            <button id="chat-login-btn" class="btn btn-cyan btn-sm" style="width:100%;height:38px;font-weight:600;border-radius:8px;justify-content:center;">
+              Log in to Chat
+            </button>
+          `}
         </div>
       </div>
     </div>
@@ -74,8 +112,17 @@ export function setupWatchRoomEvents() {
   const streamId = params?.streamId;
   const stream = store.getState().activeStream;
 
+  // Cleanup old connections if switching rooms
+  if (chatConnection) {
+    if (currentStreamId) chatConnection.invoke('LeaveStream', currentStreamId).catch(() => {});
+    chatConnection.stop().catch(() => {});
+    chatConnection = null;
+  }
+
   const onStreamReady = (s) => {
     if (!s) return;
+    currentStreamId = s.id;
+    currentChannelId = s.channelId;
     store.setActiveStream(s);
     updateStreamUI(s);
     initPlayer(s);
@@ -84,7 +131,6 @@ export function setupWatchRoomEvents() {
     setupBroadcasterControls(s);
   };
 
-  // Load stream details if missing or mismatch
   if (streamId && (!stream || stream.id !== parseInt(streamId))) {
     streamApi.getStreamById(streamId).then(s => {
       onStreamReady(s);
@@ -105,21 +151,32 @@ export function setupWatchRoomEvents() {
     showSliceModal(sid, activeS?.channelId);
   });
 
-  // Channel info click
+  // Channel visit
   document.getElementById('watch-channel-info')?.addEventListener('click', () => {
     const activeS = store.getState().activeStream;
     if (activeS?.channelId) store.navigate('channel', { channelId: activeS.channelId });
+  });
+
+  // Guest login button
+  document.getElementById('chat-login-btn')?.addEventListener('click', () => {
+    store.navigate('login');
   });
 
   // Chat send
   const chatInput = document.getElementById('chat-input');
   const chatSend = document.getElementById('chat-send');
   if (chatInput && chatSend) {
-    const sendMsg = () => {
+    const sendMsg = async () => {
       const msg = chatInput.value.trim();
-      if (!msg || !chatConnection) return;
-      chatConnection.invoke('SendMessage', msg).catch(e => console.error('Send failed', e));
-      chatInput.value = '';
+      const sid = currentStreamId || parseInt(streamId);
+      if (!msg || !chatConnection || !sid) return;
+
+      try {
+        await chatConnection.invoke('SendMessage', sid, msg);
+        chatInput.value = '';
+      } catch (e) {
+        store.showToast(e.message || 'Failed to send message', 'error');
+      }
     };
     chatSend.addEventListener('click', sendMsg);
     chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMsg(); });
@@ -133,17 +190,14 @@ function setupFollowBtn(stream) {
   const isFollowing = store.isFollowing(stream.channelId);
   followBtn.className = `btn btn-sm follow-btn ${isFollowing ? 'following' : 'not-following'}`;
   followBtn.innerHTML = isFollowing ? `${Icons.followFilled} Following` : `${Icons.follow} Follow`;
-  followBtn.onclick = () => {
-    if (store.isFollowing(stream.channelId)) {
-      store.unfollowChannel(stream.channelId);
-      followBtn.className = 'btn btn-sm follow-btn not-following';
-      followBtn.innerHTML = `${Icons.follow} Follow`;
-    } else {
-      store.followChannel(stream.channelId, stream.streamerName || stream.channelName);
-      followBtn.className = 'btn btn-sm follow-btn following';
-      followBtn.innerHTML = `${Icons.followFilled} Following`;
-      store.showToast(`Following ${stream.streamerName || 'streamer'}!`, 'success');
-    }
+  followBtn.onclick = async () => {
+    followBtn.disabled = true;
+    const chName = stream.streamerName || stream.channelName || 'Streamer';
+    const nowFollowing = await store.toggleFollow(stream.channelId, chName);
+    followBtn.className = `btn btn-sm follow-btn ${nowFollowing ? 'following' : 'not-following'}`;
+    followBtn.innerHTML = nowFollowing ? `${Icons.followFilled} Following` : `${Icons.follow} Follow`;
+    store.showToast(nowFollowing ? `Following ${chName}!` : `Unfollowed ${chName}`, 'info');
+    followBtn.disabled = false;
   };
 }
 
@@ -175,20 +229,27 @@ function setupBroadcasterControls(stream) {
         store.showToast(err.message || 'Failed to end stream', 'error');
       }
     };
-  } else {
-    endBtn.style.display = 'none';
   }
 }
 
-function updateStreamUI(s) {
-  const title = document.getElementById('watch-title');
-  const streamer = document.getElementById('watch-streamer');
-  const viewers = document.getElementById('watch-viewers');
-  const avatar = document.getElementById('watch-avatar');
-  if (title) title.textContent = s.title || 'Live Stream';
-  if (streamer) streamer.innerHTML = `${s.streamerName || 'Streamer'} ${Icons.checkCircle}`;
-  if (viewers) viewers.innerHTML = `${Icons.eye} ${s.viewerCount || 0} viewers`;
-  if (avatar) avatar.textContent = (s.streamerName || 'S')[0].toUpperCase();
+function updateStreamUI(stream) {
+  const titleEl = document.getElementById('watch-title');
+  if (titleEl) titleEl.textContent = stream.title || 'Untitled Stream';
+
+  const viewersEl = document.getElementById('viewer-count-num');
+  if (viewersEl) viewersEl.textContent = stream.viewerCount || 0;
+
+  const streamerEl = document.getElementById('watch-streamer');
+  if (streamerEl) streamerEl.innerHTML = `<span>${escapeHtml(stream.streamerName || stream.channelName || 'Streamer')}</span> ${Icons.checkCircle}`;
+
+  const avatarEl = document.getElementById('watch-avatar');
+  if (avatarEl) {
+    if (stream.thumbnailUrl && stream.thumbnailUrl.startsWith('http')) {
+      avatarEl.innerHTML = `<img src="${stream.thumbnailUrl}" style="width:100%;height:100%;object-fit:cover;" />`;
+    } else {
+      avatarEl.textContent = (stream.streamerName || 'S')[0].toUpperCase();
+    }
+  }
 }
 
 async function initPlayer(stream) {
@@ -208,7 +269,6 @@ async function initPlayer(stream) {
   const offlineEl = document.getElementById('player-offline');
   const unmuteBtn = document.getElementById('player-unmute-btn');
 
-  // Modern browsers require muted for unprompted autoplay
   video.muted = true;
   video.playsInline = true;
 
@@ -225,7 +285,6 @@ async function initPlayer(stream) {
     if (Hls.isSupported()) {
       const hls = new Hls({
         xhrSetup: (xhr) => {
-          // Bypass ngrok free tier browser warning interstitial
           xhr.setRequestHeader('ngrok-skip-browser-warning', 'true');
         },
         enableWorker: true,
@@ -278,72 +337,250 @@ async function initPlayer(stream) {
 async function initChat(channelId, streamId) {
   const statusEl = document.getElementById('chat-status');
   const messagesEl = document.getElementById('chat-messages');
-  if (!channelId || !messagesEl) return;
+  const scrollBottomBtn = document.getElementById('chat-scroll-bottom');
+  if (!streamId || !messagesEl) return;
 
+  const currentUser = getCurrentUser();
+  const isModOrStreamer = currentUser && (
+    currentUser.roles?.includes('Admin') ||
+    currentUser.roles?.includes('Moderator') ||
+    currentUser.roles?.includes('Streamer')
+  );
+
+  // Load chat history from REST API
+  try {
+    const history = await chatApi.getStreamChat(streamId);
+    if (Array.isArray(history)) {
+      messagesEl.innerHTML = history.map(m => createMessageHtml(m, isModOrStreamer)).join('');
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+  } catch (e) {
+    console.warn('Could not load chat history:', e);
+  }
+
+  // Smart scroll handling
+  let isAtBottom = true;
+  messagesEl.addEventListener('scroll', () => {
+    isAtBottom = messagesEl.scrollHeight - messagesEl.clientHeight <= messagesEl.scrollTop + 60;
+    if (scrollBottomBtn) {
+      scrollBottomBtn.style.display = isAtBottom ? 'none' : 'block';
+    }
+  });
+
+  scrollBottomBtn?.addEventListener('click', () => {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    scrollBottomBtn.style.display = 'none';
+  });
+
+  // Attach mod action delegation
+  messagesEl.addEventListener('click', async (e) => {
+    const delBtn = e.target.closest('.btn-del-msg');
+    if (delBtn) {
+      const mid = parseInt(delBtn.dataset.msgId);
+      if (!confirm('Delete this message?')) return;
+      try {
+        if (chatConnection) {
+          await chatConnection.invoke('DeleteMessage', streamId, mid);
+        } else {
+          await moderationApi.deleteMessage(channelId, mid);
+        }
+        store.showToast('Message deleted', 'info');
+      } catch (err) {
+        store.showToast(err.message || 'Failed to delete message', 'error');
+      }
+      return;
+    }
+
+    const timeoutBtn = e.target.closest('.btn-timeout-user');
+    if (timeoutBtn) {
+      const uname = timeoutBtn.dataset.username;
+      if (!confirm(`Timeout ${uname} for 5 minutes?`)) return;
+      try {
+        await moderationApi.timeoutUser(channelId, { username: uname, durationSeconds: 300, reason: 'Chat violation' });
+        store.showToast(`${uname} timed out for 5 minutes`, 'info');
+      } catch (err) {
+        store.showToast(err.message || 'Failed to timeout user', 'error');
+      }
+      return;
+    }
+
+    const banBtn = e.target.closest('.btn-ban-user');
+    if (banBtn) {
+      const uname = banBtn.dataset.username;
+      if (!confirm(`Permanently ban ${uname} from this channel's chat?`)) return;
+      try {
+        await moderationApi.banUser(channelId, { username: uname, reason: 'Chat violation' });
+        store.showToast(`${uname} banned from chat`, 'info');
+      } catch (err) {
+        store.showToast(err.message || 'Failed to ban user', 'error');
+      }
+    }
+  });
+
+  // SignalR connection setup
   try {
     const token = getAuthToken();
     chatConnection = new signalR.HubConnectionBuilder()
-      .withUrl(`${API_BASE}/hubs/stream-chat`, { accessTokenFactory: () => token })
+      .withUrl(`${API_BASE}/hubs/stream-chat`, {
+        accessTokenFactory: () => token || ''
+      })
       .withAutomaticReconnect()
       .build();
 
     chatConnection.on('ReceiveMessage', (msg) => {
       const div = document.createElement('div');
-      div.className = 'chat-msg';
-      div.innerHTML = `<span class="chat-user" style="color:${msg.color || '#00AEBD'};">${msg.username}:</span> <span class="chat-text">${escapeHtml(msg.content)}</span>`;
-      messagesEl.appendChild(div);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      div.innerHTML = createMessageHtml(msg, isModOrStreamer);
+      const child = div.firstElementChild;
+      if (child) messagesEl.appendChild(child);
+
+      if (isAtBottom) {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      } else if (scrollBottomBtn) {
+        scrollBottomBtn.style.display = 'block';
+      }
     });
 
-    chatConnection.on('SystemMessage', (msg) => {
+    chatConnection.on('MessageDeleted', (messageId) => {
+      const target = messagesEl.querySelector(`[data-msg-id="${messageId}"]`);
+      if (target) {
+        target.innerHTML = `<span style="color:var(--color-text-muted);font-style:italic;font-size:12px;opacity:0.7;">&lt;message deleted by moderator&gt;</span>`;
+      }
+    });
+
+    chatConnection.on('ViewerCountUpdate', (sid, count) => {
+      if (sid === streamId) {
+        const viewersNum = document.getElementById('viewer-count-num');
+        if (viewersNum) viewersNum.textContent = count;
+      }
+    });
+
+    chatConnection.on('StreamUpdated', (data) => {
+      if (data && data.streamId === streamId) {
+        const titleEl = document.getElementById('watch-title');
+        if (titleEl && data.title) titleEl.textContent = data.title;
+        const catBadge = document.querySelector('#watch-meta .badge-category');
+        if (catBadge && data.categoryName) catBadge.textContent = data.categoryName;
+      }
+    });
+
+    chatConnection.on('UserTimedOut', (username, durationSeconds) => {
       const div = document.createElement('div');
-      div.className = 'chat-msg';
-      div.innerHTML = `<span style="color:var(--color-text-muted);font-style:italic;">${msg}</span>`;
+      div.style.cssText = 'color:#f59e0b;font-style:italic;font-size:11px;padding:3px 8px;background:rgba(245,158,11,0.08);border-radius:4px;';
+      div.textContent = `⏳ ${username} was timed out (${durationSeconds}s)`;
       messagesEl.appendChild(div);
+      if (isAtBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+
+    chatConnection.on('UserBanned', (username) => {
+      const div = document.createElement('div');
+      div.style.cssText = 'color:#ef4444;font-style:italic;font-size:11px;padding:3px 8px;background:rgba(239,68,68,0.08);border-radius:4px;';
+      div.textContent = `🚫 ${username} was banned from chat`;
+      messagesEl.appendChild(div);
+      if (isAtBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+
+    chatConnection.on('Error', (errorMsg) => {
+      store.showToast(errorMsg, 'error');
     });
 
     await chatConnection.start();
-    await chatConnection.invoke('JoinChannel', channelId);
-    if (statusEl) { statusEl.textContent = 'Connected'; statusEl.style.color = 'var(--color-success)'; }
+    await chatConnection.invoke('JoinStream', streamId);
+    if (statusEl) {
+      statusEl.textContent = 'Connected';
+      statusEl.style.color = 'var(--color-success, #10b981)';
+    }
   } catch (e) {
-    console.warn('Chat connection failed', e);
-    if (statusEl) { statusEl.textContent = 'Disconnected'; statusEl.style.color = 'var(--color-error)'; }
+    console.warn('Chat connection failed:', e);
+    if (statusEl) {
+      statusEl.textContent = 'Disconnected';
+      statusEl.style.color = 'var(--color-error, #ef4444)';
+    }
   }
 }
 
+function createMessageHtml(msg, isModOrStreamer) {
+  const sender = msg.senderName || msg.SenderName || msg.username || 'Viewer';
+  const badge = msg.senderBadge || msg.SenderBadge;
+  const content = msg.content || msg.Content || '';
+  const mid = msg.id || msg.Id;
+  const sentAt = msg.sentAt || msg.SentAt;
+  const timeStr = sentAt ? new Date(sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+  return `
+    <div class="chat-msg" data-msg-id="${mid || ''}" style="display:flex;align-items:flex-start;justify-content:space-between;padding:4px 6px;border-radius:6px;gap:6px;">
+      <div style="flex:1;word-break:break-word;font-size:13px;line-height:1.4;">
+        <span style="font-size:10px;color:var(--color-text-muted);margin-right:4px;opacity:0.6;">${timeStr}</span>
+        ${badge ? `<span style="font-size:12px;margin-right:4px;">${badge}</span>` : ''}
+        <span class="chat-user" style="font-weight:700;color:var(--color-cyan-neon,#00f2fe);margin-right:4px;">${escapeHtml(sender)}:</span>
+        <span class="chat-text" style="color:var(--color-text,#fff);">${escapeHtml(content)}</span>
+      </div>
+      ${isModOrStreamer && mid ? `
+        <div class="chat-msg-actions" style="display:flex;gap:2px;opacity:0.4;transition:opacity 0.2s;" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0.4">
+          <button class="btn btn-ghost btn-del-msg" data-msg-id="${mid}" title="Delete" style="padding:2px 4px;font-size:10px;color:#ef4444;border:none;background:none;cursor:pointer;">
+            ${Icons.trash}
+          </button>
+          <button class="btn btn-ghost btn-timeout-user" data-username="${escapeHtml(sender)}" title="Timeout (5m)" style="padding:2px 4px;font-size:10px;color:#f59e0b;border:none;background:none;cursor:pointer;">
+            ⏱
+          </button>
+          <button class="btn btn-ghost btn-ban-user" data-username="${escapeHtml(sender)}" title="Ban" style="padding:2px 4px;font-size:10px;color:#ef4444;border:none;background:none;cursor:pointer;">
+            🚫
+          </button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
 function showSliceModal(streamId, channelId) {
-  const root = document.getElementById('modal-root');
-  if (!root) return;
-  root.innerHTML = `
-    <div class="modal-overlay" id="slice-overlay">
-      <div class="modal-content">
-        <h3>${Icons.clip} Create Clip</h3>
-        <div class="form-group">
-          <label style="color:var(--color-text-muted);">Title</label>
-          <input class="input-dark" id="slice-title" placeholder="Clip title" />
-        </div>
-        <div class="form-group">
-          <label style="color:var(--color-text-muted);">Duration (seconds, max 300)</label>
-          <input class="input-dark" type="number" id="slice-duration" value="60" min="10" max="300" />
-        </div>
-        <div style="display:flex;gap:10px;margin-top:20px;">
-          <button id="slice-confirm" class="btn btn-cyan btn-full">Create Clip</button>
-          <button id="slice-cancel" class="btn btn-ghost">Cancel</button>
-        </div>
+  const root = document.getElementById('modal-root') || document.body;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'slice-overlay';
+  overlay.innerHTML = `
+    <div class="modal-content" style="max-width:440px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="margin:0;font-size:18px;">${Icons.clip} Create Highlight Clip</h3>
+        <button id="slice-close-x" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">&times;</button>
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="color:var(--color-text-muted);font-size:12px;font-weight:600;">Clip Title</label>
+        <input class="input-dark" id="slice-title" placeholder="Epic play or funny moment" style="margin-top:4px;" />
+      </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label style="color:var(--color-text-muted);font-size:12px;font-weight:600;">Duration (seconds, max 300)</label>
+        <input class="input-dark" type="number" id="slice-duration" value="60" min="10" max="300" style="margin-top:4px;" />
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="slice-cancel" class="btn btn-ghost btn-sm">Cancel</button>
+        <button id="slice-confirm" class="btn btn-cyan btn-sm">Create Clip</button>
       </div>
     </div>
   `;
-  document.getElementById('slice-cancel')?.addEventListener('click', () => { root.innerHTML = ''; store.closeModal(); });
-  document.getElementById('slice-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'slice-overlay') { root.innerHTML = ''; store.closeModal(); } });
-  document.getElementById('slice-confirm')?.addEventListener('click', async () => {
-    const btn = document.getElementById('slice-confirm');
-    btn.disabled = true; btn.textContent = 'Creating...';
+
+  root.appendChild(overlay);
+
+  const close = () => { overlay.remove(); store.closeModal(); };
+  overlay.querySelector('#slice-close-x')?.addEventListener('click', close);
+  overlay.querySelector('#slice-cancel')?.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  overlay.querySelector('#slice-confirm')?.addEventListener('click', async () => {
+    const btn = overlay.querySelector('#slice-confirm');
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
     try {
-      await clipApi.slice({ streamId, channelId, title: document.getElementById('slice-title').value || 'Untitled Clip', durationSeconds: parseInt(document.getElementById('slice-duration').value) || 60 });
-      store.showToast('Clip created!', 'success');
-      root.innerHTML = ''; store.closeModal();
-    } catch (e) { store.showToast(e.message || 'Clip failed', 'error'); btn.disabled = false; btn.textContent = 'Create Clip'; }
+      await clipApi.slice({
+        streamId,
+        channelId,
+        title: overlay.querySelector('#slice-title').value.trim() || 'Untitled Clip',
+        durationSeconds: parseInt(overlay.querySelector('#slice-duration').value) || 60
+      });
+      store.showToast('Clip created successfully!', 'success');
+      close();
+    } catch (e) {
+      store.showToast(e.message || 'Failed to create clip', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Create Clip';
+    }
   });
 }
-
-function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }

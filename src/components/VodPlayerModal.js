@@ -2,6 +2,7 @@ import mpegts from 'mpegts.js';
 import { Icons } from './CosmicIcons.js';
 import { vodApi } from '../api/vod.js';
 import { store } from '../state/store.js';
+import { getSessionId } from '../utils/session.js';
 
 let activePlayer = null;
 let activeModal = null;
@@ -154,8 +155,8 @@ export async function openVodPlayerModal(vod) {
           if (countEl) countEl.textContent = `${chatMessages.length} messages`;
         }
       }
-      // Record view asynchronously
-      vodApi.recordView(vodId).catch(() => {});
+      // Record view asynchronously with session deduplication
+      vodApi.recordView(vodId, getSessionId()).catch(() => {});
     } catch (e) {
       console.warn('[VodPlayer] Could not fetch extended VOD details', e);
     }

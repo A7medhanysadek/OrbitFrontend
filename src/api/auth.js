@@ -35,6 +35,19 @@ export const authApi = {
     return res;
   },
 
+  async googleLogin(credential) {
+    const res = await apiClient('/api/Auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential })
+    });
+    const token = res?.accessToken || res?.token;
+    if (res && token) {
+      setTokens(token, res.refreshToken);
+      setCurrentUser(res);
+    }
+    return res;
+  },
+
   async refreshToken() {
     const refreshToken = getRefreshToken();
     const token = getAuthToken();
