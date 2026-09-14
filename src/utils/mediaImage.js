@@ -49,6 +49,13 @@ export async function loadMediaImage(imgElement, originalUrl, fallback = DEFAULT
     return;
   }
 
+  // If on HTTPS page and targetUrl is plaintext http://localhost, browser blocks it due to Mixed Content
+  const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  if (isHttpsPage && isLocalhost && targetUrl.startsWith('http://')) {
+    imgElement.src = fallback;
+    return;
+  }
+
   // Check in-memory cache
   if (blobCache.has(targetUrl)) {
     imgElement.src = blobCache.get(targetUrl);

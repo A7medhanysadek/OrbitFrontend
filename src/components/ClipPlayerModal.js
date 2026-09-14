@@ -3,12 +3,11 @@ import { Icons } from './CosmicIcons.js';
 import { clipApi } from '../api/clip.js';
 import { store } from '../state/store.js';
 import { getSessionId } from '../utils/session.js';
+import { resolveMediaUrl, getClipsBaseUrl, getRecordingsBaseUrl, fetchMediaConfig, isMixedContentMedia } from '../utils/mediaConfig.js';
 
 let activePlayer = null;
 let activeModal = null;
 let activeBlobUrl = null;
-
-import { resolveMediaUrl, getClipsBaseUrl, getRecordingsBaseUrl } from '../utils/mediaConfig.js';
 
 export { resolveMediaUrl, getClipsBaseUrl, getRecordingsBaseUrl };
 
@@ -25,10 +24,16 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
     clipApi.recordView(clip.id, getSessionId()).catch(() => {});
   }
 
+  // Ensure latest media config from server
+  await fetchMediaConfig().catch(() => {});
+
   const rawUrl = clip.videoUrl || clip.url || '';
-  const resolvedUrl = resolveMediaUrl(rawUrl);
+  let resolvedUrl = resolveMediaUrl(rawUrl);
   const isFlv = resolvedUrl.toLowerCase().includes('.flv');
   const isMp4 = resolvedUrl.toLowerCase().includes('.mp4');
+  const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const isLocalMedia = resolvedUrl.startsWith('http://localhost') || resolvedUrl.startsWith('http://127.0.0.1');
+  const isMixedContent = isHttpsPage && isLocalMedia;
 
   // Create Modal DOM
   const modal = document.createElement('div');
@@ -100,7 +105,7 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
 
       <!-- Modal Body (Video Player) -->
       <div style="position: relative; width: 100%; aspect-ratio: 16/9; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden;">
-        <video id="clip-video" controls autoplay playsinline style="width: 100%; height: 100%; max-height: 60vh; background: #000; object-fit: contain;"></video>
+        <video id="clip-video" controls playsinline style="width: 100%; height: 100%; max-height: 60vh; background: #000; object-fit: contain;"></video>
         
         <!-- Loading Spinner -->
         <div id="clip-loading-spinner" style="position: absolute; display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--color-cyan-neon, #00f2fe);">
@@ -108,19 +113,25 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
           <span style="font-size: 13px; font-weight: 500; text-shadow: 0 2px 8px rgba(0,0,0,0.8);">Loading clip stream...</span>
         </div>
 
-        <!-- Error State Overlay -->
-        <div id="clip-error-box" style="display: none; position: absolute; inset: 0; background: rgba(10, 12, 22, 0.96); flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center;">
-          <div style="font-size: 40px; color: #ef4444;">&#9888;</div>
-          <h4 style="margin: 0; color: #fff; font-size: 17px; font-weight: 700;">Clip Stream Unavailable</h4>
-          <p id="clip-error-msg" style="margin: 0; color: var(--color-text-muted, #888); font-size: 13px; max-width: 460px; line-height: 1.5;">
-            The clip media file could not be loaded or the streaming server tunnel is offline.
-          </p>
-          <div style="display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; justify-content: center;">
+        <!-- Error / Info State Overlay -->
+        <div id="clip-error-box" style="display: none; position: absolute; inset: 0; background: rgba(10, 12, 22, 0.96); flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; overflow-y: auto;">
+          <div id="clip-error-icon" style="font-size: 40px; color: #ef4444;">&#9888;</div>
+          <h4 id="clip-error-title" style="margin: 0; color: #fff; font-size: 17px; font-weight: 700;">Clip Stream Unavailable</h4>
+          <div id="clip-error-msg" style="margin: 0; color: var(--color-text-muted, #888); font-size: 13px; max-width: 520px; line-height: 1.5;">
+            The clip media file could not be loaded or the streaming server is offline.
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; justify-content: center;">
             <a id="clip-direct-link" href="${resolvedUrl || '#'}" target="_blank" class="btn btn-cyan btn-sm">
               ${Icons.play} Open in VLC / New Tab
             </a>
-            <button id="clip-retry-btn" class="btn btn-outline btn-sm">
-              ${Icons.refresh} Retry
+            <button id="clip-copy-url-btn" class="btn btn-outline btn-sm">
+              ${Icons.share} Copy Media URL
+            </button>
+            <a id="clip-download-btn" href="${resolvedUrl || '#'}" download class="btn btn-outline btn-sm">
+              ${Icons.download} Download File
+            </a>
+            <button id="clip-retry-btn" class="btn btn-ghost btn-sm">
+              ${Icons.refresh} Refresh & Retry
             </button>
           </div>
         </div>
@@ -141,10 +152,12 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
             color: #000;
             font-weight: 700;
             font-size: 16px;
-            flex-shrink: 0;
             overflow: hidden;
+            flex-shrink: 0;
           ">
-            ${clip.creatorProfilePictureUrl ? `<img src="${clip.creatorProfilePictureUrl}" style="width:100%;height:100%;object-fit:cover;" />` : (clip.creatorName || clip.channelName || 'C')[0].toUpperCase()}
+            ${clip.creatorProfilePictureUrl
+              ? `<img src="${clip.creatorProfilePictureUrl}" style="width:100%;height:100%;object-fit:cover;" />`
+              : (clip.creatorName || clip.creatorUsername || 'C')[0].toUpperCase()}
           </div>
           <div style="min-width: 0;">
             <div style="font-size: 14px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
@@ -166,10 +179,10 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
               ${Icons.rocket} Visit Channel
             </button>
           ` : ''}
-          <a id="clip-download-btn" href="${resolvedUrl || '#'}" target="_blank" class="btn btn-outline btn-sm" download title="Download Clip">
+          <a id="clip-download-footer-btn" href="${resolvedUrl || '#'}" download class="btn btn-outline btn-sm">
             ${Icons.download} Download
           </a>
-          <button id="clip-share-btn" class="btn btn-ghost btn-sm" title="Copy Clip URL">
+          <button id="clip-share-btn" class="btn btn-ghost btn-sm">
             ${Icons.share} Share
           </button>
           ${(isAdmin || isOwner) ? `
@@ -204,8 +217,22 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
   const video = modal.querySelector('#clip-video');
   const spinner = modal.querySelector('#clip-loading-spinner');
   const errorBox = modal.querySelector('#clip-error-box');
+  const errorTitle = modal.querySelector('#clip-error-title');
   const errorMsg = modal.querySelector('#clip-error-msg');
+  const errorIcon = modal.querySelector('#clip-error-icon');
   const retryBtn = modal.querySelector('#clip-retry-btn');
+  const copyUrlBtn = modal.querySelector('#clip-copy-url-btn');
+
+  // Copy media URL
+  copyUrlBtn?.addEventListener('click', () => {
+    if (resolvedUrl) {
+      navigator.clipboard?.writeText(resolvedUrl).then(() => {
+        store.showToast('Media URL copied to clipboard for VLC / external player!', 'success');
+      }).catch(() => {
+        store.showToast('Media URL: ' + resolvedUrl, 'info');
+      });
+    }
+  });
 
   // Channel visit
   modal.querySelector('#clip-visit-channel')?.addEventListener('click', () => {
@@ -233,7 +260,6 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
       if (typeof onClipDeleted === 'function') {
         onClipDeleted(clip.id);
       } else {
-        // Reload current view if in clips feed
         if (store.getState().currentView === 'clips') {
           store.navigate('clips');
         }
@@ -244,9 +270,17 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
   });
 
   // Retry
-  retryBtn?.addEventListener('click', () => {
+  retryBtn?.addEventListener('click', async () => {
     if (errorBox) errorBox.style.display = 'none';
     if (spinner) spinner.style.display = 'flex';
+    await fetchMediaConfig(true).catch(() => {});
+    resolvedUrl = resolveMediaUrl(rawUrl);
+    const directLink = modal.querySelector('#clip-direct-link');
+    const downloadBtn = modal.querySelector('#clip-download-btn');
+    const footerDownload = modal.querySelector('#clip-download-footer-btn');
+    if (directLink) directLink.href = resolvedUrl || '#';
+    if (downloadBtn) downloadBtn.href = resolvedUrl || '#';
+    if (footerDownload) footerDownload.href = resolvedUrl || '#';
     initPlayback();
   });
 
@@ -261,9 +295,38 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
       return;
     }
 
+    // Check for Browser Mixed-Content Restriction
+    if (isMixedContent) {
+      if (spinner) spinner.style.display = 'none';
+      if (errorBox) {
+        errorBox.style.display = 'flex';
+        if (errorIcon) {
+          errorIcon.innerHTML = '&#128274;';
+          errorIcon.style.color = 'var(--color-cyan-neon, #00f2fe)';
+        }
+        if (errorTitle) {
+          errorTitle.textContent = 'Browser Mixed-Content Restriction';
+        }
+        if (errorMsg) {
+          errorMsg.innerHTML = `
+            <div style="text-align: left; background: rgba(255,255,255,0.04); border-radius: 8px; padding: 14px; margin-top: 4px; font-size: 13px; line-height: 1.6;">
+              <p style="margin: 0 0 10px; color: #eee;">
+                You are viewing Orbit over <strong>HTTPS</strong> (<code style="color:var(--color-cyan-neon,#00f2fe);">${window.location.host}</code>), but your media server is configured to local <strong>HTTP</strong> (<code style="color:var(--color-cyan-neon,#00f2fe);">${escapeHtml(resolvedUrl.substring(0, resolvedUrl.indexOf('/clips') + 6) || resolvedUrl)}</code>). Modern browsers block plaintext HTTP media requests inside HTTPS pages.
+              </p>
+              <div style="display: flex; flex-direction: column; gap: 8px; color: #ccc; font-size: 12px;">
+                <div>&#128640; <strong>Recommended for Local Testing:</strong> Run the frontend locally (<code style="color:var(--color-cyan-neon,#00f2fe);">npm run dev</code> at <code style="color:var(--color-cyan-neon,#00f2fe);">http://localhost:5173</code>). It connects to your live MonsterASP backend with zero mixed-content restrictions!</div>
+                <div>&#127760; <strong>For Online Playback:</strong> Set an HTTPS tunnel (e.g. ngrok HTTPS URL) in <strong>Admin &rarr; Media Server</strong> settings.</div>
+                <div>&#127911; <strong>External Player:</strong> You can open or stream this clip directly in VLC player or download it below.</div>
+              </div>
+            </div>
+          `;
+        }
+      }
+      return;
+    }
+
     try {
       if (isFlv && mpegts.isSupported()) {
-        // FLV with mpegts.js & ngrok headers
         const flvPlayer = mpegts.createPlayer({
           type: 'flv',
           url: resolvedUrl,
@@ -298,8 +361,6 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
         flvPlayer.play().catch(() => {});
       } else {
         // MP4 playback
-        // If served from an ngrok tunnel, fetch as blob with ngrok-skip-browser-warning
-        // to avoid the ngrok HTML interstitial warning page that breaks native <video>
         const isNgrok = resolvedUrl.includes('ngrok');
 
         if (isNgrok) {
@@ -326,7 +387,6 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
             video.play().catch(() => {});
           } catch (fetchErr) {
             console.warn('[ClipPlayer] Blob fetch failed, falling back to direct src:', fetchErr);
-            // Fall back to direct video.src
             video.src = resolvedUrl;
             video.load();
             video.play().catch(() => {});

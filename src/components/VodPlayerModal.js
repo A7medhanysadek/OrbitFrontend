@@ -3,13 +3,16 @@ import { Icons } from './CosmicIcons.js';
 import { vodApi } from '../api/vod.js';
 import { store } from '../state/store.js';
 import { getSessionId } from '../utils/session.js';
-import { resolveMediaUrl } from '../utils/mediaConfig.js';
+import { resolveMediaUrl, fetchMediaConfig, isMixedContentMedia } from '../utils/mediaConfig.js';
 
 let activePlayer = null;
 let activeModal = null;
 
 export async function openVodPlayerModal(vod) {
   closeVodPlayerModal();
+
+  // Ensure latest media config from server
+  await fetchMediaConfig().catch(() => {});
 
   const vodId = vod.id || vod.streamId;
   let vodDetails = vod;
@@ -55,7 +58,7 @@ export async function openVodPlayerModal(vod) {
         <div style="display: flex; align-items: center; gap: 10px;">
           <span style="color: var(--color-cyan-neon, #00f2fe); font-size: 18px;">${Icons.play}</span>
           <h3 id="vod-modal-title" style="margin: 0; font-size: 16px; font-weight: 700; color: var(--color-text, #fff);">
-            ${vod.title || 'Broadcast Replay'}
+            ${escapeHtml(vod.title || 'Broadcast Replay')}
           </h3>
           <span id="vod-modal-format" style="
             font-size: 11px;
@@ -75,19 +78,30 @@ export async function openVodPlayerModal(vod) {
       <div style="display: flex; flex: 1; min-height: 0; flex-direction: row; background: #000;">
         <!-- Left: Video Area -->
         <div style="flex: 1; display: flex; flex-direction: column; background: #000; position: relative; min-width: 0;">
-          <div style="position: relative; width: 100%; aspect-ratio: 16/9; background: #000; display: flex; align-items: center; justify-content: center;">
+          <div style="position: relative; width: 100%; aspect-ratio: 16/9; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden;">
             <video id="vod-video" controls playsinline style="width: 100%; height: 100%; max-height: 55vh; background: #000;"></video>
             <div id="vod-loading-spinner" style="position: absolute; display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--color-cyan-neon, #00f2fe);">
               <div class="spinner"></div>
               <span style="font-size: 13px;">Loading video recording...</span>
             </div>
-            <div id="vod-error-box" style="display: none; position: absolute; inset: 0; background: rgba(10,12,20,0.95); flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center;">
-              <div style="font-size: 36px; color: #ef4444;">&#9888;</div>
-              <h4 style="margin: 0; color: #fff;">Playback Failed</h4>
-              <p id="vod-error-msg" style="margin: 0; color: var(--color-text-muted, #888); font-size: 13px; max-width: 400px;"></p>
-              <a id="vod-direct-link" href="#" target="_blank" class="btn btn-cyan btn-sm" style="margin-top: 8px;">
-                ${Icons.play} Open Video in VLC / New Tab
-              </a>
+            <div id="vod-error-box" style="display: none; position: absolute; inset: 0; background: rgba(10,12,20,0.96); flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center; overflow-y: auto;">
+              <div id="vod-error-icon" style="font-size: 36px; color: #ef4444;">&#9888;</div>
+              <h4 id="vod-error-title" style="margin: 0; color: #fff;">Playback Failed</h4>
+              <div id="vod-error-msg" style="margin: 0; color: var(--color-text-muted, #888); font-size: 13px; max-width: 500px; line-height: 1.5;"></div>
+              <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; justify-content: center;">
+                <a id="vod-direct-link" href="#" target="_blank" class="btn btn-cyan btn-sm">
+                  ${Icons.play} Open in VLC / New Tab
+                </a>
+                <button id="vod-copy-url-btn" class="btn btn-outline btn-sm">
+                  ${Icons.share} Copy Stream URL
+                </button>
+                <a id="vod-error-download-btn" href="#" download class="btn btn-outline btn-sm">
+                  ${Icons.download} Download
+                </a>
+                <button id="vod-retry-btn" class="btn btn-ghost btn-sm">
+                  ${Icons.refresh} Retry
+                </button>
+              </div>
             </div>
           </div>
 
@@ -95,13 +109,16 @@ export async function openVodPlayerModal(vod) {
           <div style="padding: 14px 20px; background: var(--color-space-panel, #0f1424); border-top: 1px solid rgba(255, 255, 255, 0.05); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div>
               <div style="font-size: 14px; font-weight: 600; color: var(--color-text, #fff);" id="vod-info-streamer">
-                ${vod.streamerName || vod.channelName || 'Broadcaster'}
+                ${escapeHtml(vod.streamerName || vod.channelName || 'Broadcaster')}
               </div>
               <div style="font-size: 12px; color: var(--color-text-muted, #888);" id="vod-info-meta">
                 ${vod.duration ? `Duration: ${vod.duration} &bull; ` : ''}${vod.rewatchCount || 0} views
               </div>
             </div>
-            <div style="display: flex; gap: 8px;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button id="vod-copy-url-footer" class="btn btn-ghost btn-sm">
+                ${Icons.share} Share URL
+              </button>
               <a id="vod-download-btn" href="#" target="_blank" class="btn btn-outline btn-sm" download>
                 ${Icons.download} Download
               </a>
@@ -156,7 +173,6 @@ export async function openVodPlayerModal(vod) {
           if (countEl) countEl.textContent = `${chatMessages.length} messages`;
         }
       }
-      // Record view asynchronously with session deduplication
       vodApi.recordView(vodId, getSessionId()).catch(() => {});
     } catch (e) {
       console.warn('[VodPlayer] Could not fetch extended VOD details', e);
@@ -176,17 +192,48 @@ export async function openVodPlayerModal(vod) {
   }
 
   const rawUrl = vodDetails.vodUrl || vodDetails.url || vod.vodUrl || vod.url;
-  const resolvedUrl = resolveMediaUrl(rawUrl);
+  let resolvedUrl = resolveMediaUrl(rawUrl);
+
   const directLink = modal.querySelector('#vod-direct-link');
   const downloadBtn = modal.querySelector('#vod-download-btn');
+  const errDownloadBtn = modal.querySelector('#vod-error-download-btn');
   if (directLink && resolvedUrl) directLink.href = resolvedUrl;
   if (downloadBtn && resolvedUrl) downloadBtn.href = resolvedUrl;
+  if (errDownloadBtn && resolvedUrl) errDownloadBtn.href = resolvedUrl;
 
   const video = modal.querySelector('#vod-video');
   const spinner = modal.querySelector('#vod-loading-spinner');
   const errorBox = modal.querySelector('#vod-error-box');
+  const errorTitle = modal.querySelector('#vod-error-title');
   const errorMsg = modal.querySelector('#vod-error-msg');
+  const errorIcon = modal.querySelector('#vod-error-icon');
   const formatBadge = modal.querySelector('#vod-modal-format');
+  const copyUrlBtn = modal.querySelector('#vod-copy-url-btn');
+  const copyUrlFooter = modal.querySelector('#vod-copy-url-footer');
+  const retryBtn = modal.querySelector('#vod-retry-btn');
+
+  const copyUrlHandler = () => {
+    if (resolvedUrl) {
+      navigator.clipboard?.writeText(resolvedUrl).then(() => {
+        store.showToast('VOD URL copied to clipboard for VLC!', 'success');
+      }).catch(() => {
+        store.showToast('VOD URL: ' + resolvedUrl, 'info');
+      });
+    }
+  };
+  copyUrlBtn?.addEventListener('click', copyUrlHandler);
+  copyUrlFooter?.addEventListener('click', copyUrlHandler);
+
+  retryBtn?.addEventListener('click', async () => {
+    if (errorBox) errorBox.style.display = 'none';
+    if (spinner) spinner.style.display = 'flex';
+    await fetchMediaConfig(true).catch(() => {});
+    resolvedUrl = resolveMediaUrl(rawUrl);
+    if (directLink) directLink.href = resolvedUrl || '#';
+    if (downloadBtn) downloadBtn.href = resolvedUrl || '#';
+    if (errDownloadBtn) errDownloadBtn.href = resolvedUrl || '#';
+    initPlayback();
+  });
 
   if (!resolvedUrl) {
     if (spinner) spinner.style.display = 'none';
@@ -201,69 +248,104 @@ export async function openVodPlayerModal(vod) {
   const isMp4 = resolvedUrl.toLowerCase().includes('.mp4');
   if (formatBadge) formatBadge.textContent = isFlv ? 'FLV STREAM' : (isMp4 ? 'MP4 VIDEO' : 'VOD');
 
+  const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const isLocalMedia = resolvedUrl.startsWith('http://localhost') || resolvedUrl.startsWith('http://127.0.0.1');
+  const isMixedContent = isHttpsPage && isLocalMedia;
+
   // Initialize playback
-  try {
-    if (isFlv && mpegts.isSupported()) {
-      // Use mpegts.js for FLV video decoding with ngrok-skip-browser-warning
-      const flvPlayer = mpegts.createPlayer({
-        type: 'flv',
-        url: resolvedUrl,
-        isLive: false,
-        cors: true
-      }, {
-        headers: {
-          'ngrok-skip-browser-warning': 'true'
-        },
-        enableWorker: true,
-        lazyLoadMaxDuration: 180,
-        seekType: 'range'
-      });
-
-      flvPlayer.attachMediaElement(video);
-      flvPlayer.load();
-      activePlayer = flvPlayer;
-
-      flvPlayer.on(mpegts.Events.ERROR, (errType, errDetail) => {
-        console.error('[VodPlayer] mpegts error:', errType, errDetail);
-        if (spinner) spinner.style.display = 'none';
-        if (errorBox) {
-          errorBox.style.display = 'flex';
-          if (errorMsg) errorMsg.textContent = `FLV playback failed (${errType}: ${errDetail}). You can open the raw stream in VLC player.`;
-        }
-      });
-
-      video.addEventListener('canplay', () => {
-        if (spinner) spinner.style.display = 'none';
-      }, { once: true });
-
-      flvPlayer.play().catch(() => {});
-    } else {
-      // For MP4 or direct browser video:
-      // When accessed through ngrok, if native video tag fails, we notify with direct VLC button
+  function initPlayback() {
+    // Check for Browser Mixed-Content Restriction
+    if (isMixedContent) {
       if (spinner) spinner.style.display = 'none';
-      video.src = resolvedUrl;
-      video.load();
-      video.play().catch(() => {});
-
-      video.addEventListener('error', () => {
-        if (errorBox) {
-          errorBox.style.display = 'flex';
-          if (errorMsg) {
-            errorMsg.textContent = isFlv
-              ? 'Your browser does not support native FLV playback and mpegts MSE is unavailable. Please play in VLC.'
-              : 'Video could not be decoded or was blocked by the browser. You can play directly in VLC.';
-          }
+      if (errorBox) {
+        errorBox.style.display = 'flex';
+        if (errorIcon) {
+          errorIcon.innerHTML = '&#128274;';
+          errorIcon.style.color = 'var(--color-cyan-neon, #00f2fe)';
         }
-      });
+        if (errorTitle) {
+          errorTitle.textContent = 'Browser Mixed-Content Restriction';
+        }
+        if (errorMsg) {
+          errorMsg.innerHTML = `
+            <div style="text-align: left; background: rgba(255,255,255,0.04); border-radius: 8px; padding: 14px; margin-top: 4px; font-size: 13px; line-height: 1.6;">
+              <p style="margin: 0 0 10px; color: #eee;">
+                You are viewing Orbit on <strong>HTTPS</strong> (<code style="color:var(--color-cyan-neon,#00f2fe);">${window.location.host}</code>), but your media server is configured to local <strong>HTTP</strong> (<code style="color:var(--color-cyan-neon,#00f2fe);">${escapeHtml(resolvedUrl.substring(0, resolvedUrl.indexOf('/recordings') + 11) || resolvedUrl)}</code>). Browsers block insecure HTTP video requests on HTTPS pages.
+              </p>
+              <div style="display: flex; flex-direction: column; gap: 8px; color: #ccc; font-size: 12px;">
+                <div>&#128640; <strong>Recommended for Local Testing:</strong> Run Orbit locally (<code style="color:var(--color-cyan-neon,#00f2fe);">npm run dev</code> at <code style="color:var(--color-cyan-neon,#00f2fe);">http://localhost:5173</code>). It connects directly to your live MonsterASP backend with no mixed-content restrictions!</div>
+                <div>&#127760; <strong>For Online Playback:</strong> Configure an HTTPS tunnel (e.g. ngrok HTTPS URL) in <strong>Admin &rarr; Media Server</strong> settings.</div>
+                <div>&#127911; <strong>External Player:</strong> Stream this FLV recording directly in VLC player or download it below.</div>
+              </div>
+            </div>
+          `;
+        }
+      }
+      return;
     }
-  } catch (err) {
-    console.error('[VodPlayer] Initialization error:', err);
-    if (spinner) spinner.style.display = 'none';
-    if (errorBox) {
-      errorBox.style.display = 'flex';
-      if (errorMsg) errorMsg.textContent = err.message || 'Failed to initialize player.';
+
+    try {
+      if (isFlv && mpegts.isSupported()) {
+        const flvPlayer = mpegts.createPlayer({
+          type: 'flv',
+          url: resolvedUrl,
+          isLive: false,
+          cors: true
+        }, {
+          headers: {
+            'ngrok-skip-browser-warning': 'true'
+          },
+          enableWorker: true,
+          lazyLoadMaxDuration: 180,
+          seekType: 'range'
+        });
+
+        flvPlayer.attachMediaElement(video);
+        flvPlayer.load();
+        activePlayer = flvPlayer;
+
+        flvPlayer.on(mpegts.Events.ERROR, (errType, errDetail) => {
+          console.error('[VodPlayer] mpegts error:', errType, errDetail);
+          if (spinner) spinner.style.display = 'none';
+          if (errorBox) {
+            errorBox.style.display = 'flex';
+            if (errorMsg) errorMsg.textContent = `FLV playback failed (${errType}: ${errDetail}). You can open the raw stream in VLC player.`;
+          }
+        });
+
+        video.addEventListener('canplay', () => {
+          if (spinner) spinner.style.display = 'none';
+        }, { once: true });
+
+        flvPlayer.play().catch(() => {});
+      } else {
+        if (spinner) spinner.style.display = 'none';
+        video.src = resolvedUrl;
+        video.load();
+        video.play().catch(() => {});
+
+        video.addEventListener('error', () => {
+          if (errorBox) {
+            errorBox.style.display = 'flex';
+            if (errorMsg) {
+              errorMsg.textContent = isFlv
+                ? 'Your browser does not support native FLV playback and mpegts MSE is unavailable. Please play in VLC.'
+                : 'Video could not be decoded or was blocked by the browser. You can play directly in VLC.';
+            }
+          }
+        });
+      }
+    } catch (err) {
+      console.error('[VodPlayer] Initialization error:', err);
+      if (spinner) spinner.style.display = 'none';
+      if (errorBox) {
+        errorBox.style.display = 'flex';
+        if (errorMsg) errorMsg.textContent = err.message || 'Failed to initialize player.';
+      }
     }
   }
+
+  initPlayback();
 
   // Synchronized Chat Replay
   const chatContainer = modal.querySelector('#vod-chat-messages');
@@ -289,7 +371,7 @@ export async function openVodPlayerModal(vod) {
               ${formatTimestamp(m.streamOffsetSeconds || 0)}
             </span>
             <div style="word-break:break-word;">
-              <span style="font-weight:600;color:var(--color-text,#fff);margin-right:6px;">${m.senderName || 'Viewer'}:</span>
+              <span style="font-weight:600;color:var(--color-text,#fff);margin-right:6px;">${escapeHtml(m.senderName || 'Viewer')}:</span>
               <span style="color:rgba(255,255,255,0.85);">${escapeHtml(m.content || '')}</span>
             </div>
           </div>
@@ -330,5 +412,6 @@ function formatTimestamp(seconds) {
 }
 
 function escapeHtml(str) {
+  if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

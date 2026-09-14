@@ -1,5 +1,4 @@
-export const API_BASE = (typeof window !== 'undefined' && window.localStorage && localStorage.getItem('orbit_api_base')) ||
-  (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5050' : 'https://orbit.tryasp.net');
+export const API_BASE = (typeof window !== 'undefined' && window.localStorage && localStorage.getItem('orbit_api_base')) || 'https://orbit.tryasp.net';
 
 export function getAuthToken() {
   return localStorage.getItem('orbit_access_token');

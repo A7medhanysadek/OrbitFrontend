@@ -929,6 +929,10 @@ async function renderMediaServerTab(container) {
                 <input class="input-dark" id="admin-media-hls" type="text" value="${escapeHtml(cfg.effectiveHlsBaseUrl || '')}" placeholder="e.g. https://cdn.orbit.live/hls" required style="width:100%;background:transparent;border:none;color:#fff;padding:10px 0;" />
               </div>
               <span style="font-size:11px;color:var(--color-text-muted);margin-top:4px;display:block;">Default: <code>http://localhost:8080/hls</code> (Stream manifest URL format: <code>{hlsBaseUrl}/{streamKey}.m3u8</code>)</span>
+              <div style="font-size:12px;color:var(--color-cyan-neon,#00f2fe);margin-top:8px;padding:8px 12px;background:rgba(0,242,254,0.06);border:1px solid rgba(0,242,254,0.15);border-radius:6px;display:flex;flex-direction:column;gap:4px;">
+                <div>Clips Base URL: <strong style="color:#fff;">${escapeHtml(cfg.clipsBaseUrl || (cfg.effectiveHlsBaseUrl ? cfg.effectiveHlsBaseUrl.replace('/hls', '/clips') : 'http://localhost:8080/clips'))}</strong></div>
+                <div>Recordings (VOD) Base URL: <strong style="color:#fff;">${escapeHtml(cfg.recordingsBaseUrl || (cfg.effectiveHlsBaseUrl ? cfg.effectiveHlsBaseUrl.replace('/hls', '/recordings') : 'http://localhost:8080/recordings'))}</strong></div>
+              </div>
             </div>
 
             <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;">
@@ -944,10 +948,13 @@ async function renderMediaServerTab(container) {
 
         <div class="card" style="padding:20px;background:rgba(0,242,254,0.03);border:1px solid rgba(0,242,254,0.15);">
           <h4 style="color:var(--color-cyan-primary);margin:0 0 8px 0;font-size:14px;display:flex;align-items:center;gap:6px;">
-            ${Icons.info} Deployment & CDN Notes
+            ${Icons.info} Deployment & HTTPS / Localhost Notes
           </h4>
+          <p style="font-size:12px;color:var(--color-text-muted);line-height:1.6;margin:0 0 8px 0;">
+            Changing these endpoints updates live stream ingest, HLS manifests, clips delivery, and VOD playback URLs across the platform immediately.
+          </p>
           <p style="font-size:12px;color:var(--color-text-muted);line-height:1.6;margin:0;">
-            Changing these endpoints will update the stream ingest configuration presented in the Streamer Studio for all broadcast sessions immediately, as well as the HLS manifest endpoints resolved in viewers' web video players. Ensure your RTMP/HLS server or CDN reverse proxy is running and reachable over the specified ports.
+            <strong style="color:#fff;">Important for Localhost Testing:</strong> Modern browsers strictly block plaintext HTTP media requests (like <code>http://localhost:8080</code>) on HTTPS websites (such as GitHub Pages). If testing with a local NGINX server on your computer, run the frontend locally with <code style="color:var(--color-cyan-neon,#00f2fe);">npm run dev</code> (at <code>http://localhost:5173</code>), which connects directly to the MonsterASP backend without any mixed-content restrictions. Alternatively, configure an HTTPS tunnel (e.g. ngrok HTTPS URL) above for online playback on HTTPS pages.
           </p>
         </div>
       </div>

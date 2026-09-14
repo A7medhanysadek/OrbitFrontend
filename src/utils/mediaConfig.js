@@ -8,12 +8,43 @@ const DEFAULT_LOCAL_RECORDINGS = 'http://localhost:8080/recordings';
 const DEFAULT_LOCAL_HLS = 'http://localhost:8080/hls';
 const DEFAULT_LOCAL_RTMP = 'rtmp://localhost:1935/live';
 
+const LEGACY_DEAD_HOSTS = ['unwound-overlook-boat.ngrok-free.dev'];
+
+function purgeLegacyStorage() {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const cfgStr = localStorage.getItem('orbit_media_config');
+    if (cfgStr) {
+      for (const dead of LEGACY_DEAD_HOSTS) {
+        if (cfgStr.includes(dead)) {
+          localStorage.removeItem('orbit_media_config');
+          break;
+        }
+      }
+    }
+    for (const key of ['orbit_clips_base', 'orbit_recordings_base', 'orbit_hls_base', 'orbit_rtmp_url']) {
+      const val = localStorage.getItem(key);
+      if (val) {
+        for (const dead of LEGACY_DEAD_HOSTS) {
+          if (val.includes(dead)) {
+            localStorage.removeItem(key);
+            break;
+          }
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+// Purge legacy storage immediately on module evaluation
+purgeLegacyStorage();
+
 /**
  * Initialize / fetch the media server configuration from the backend config endpoint.
- * Results are cached in memory and in localStorage.
+ * Always fetches from the server on startup so updates on the server are picked up immediately.
  */
 export async function fetchMediaConfig(forceRefresh = false) {
-  if (cachedConfig && !forceRefresh) {
+  if (cachedConfig && cachedConfig._fetchedFromServer && !forceRefresh) {
     return cachedConfig;
   }
   if (fetchPromise && !forceRefresh) {
@@ -25,12 +56,13 @@ export async function fetchMediaConfig(forceRefresh = false) {
       const cfg = await apiClient('/api/Stream/server/config');
       if (cfg) {
         cachedConfig = {
+          _fetchedFromServer: true,
           isConfigured: !!cfg.isConfigured,
           isCustomConfigured: !!cfg.isCustomConfigured,
           rtmpUrl: cfg.effectiveRtmpUrl || cfg.rtmpUrl || DEFAULT_LOCAL_RTMP,
           hlsBaseUrl: cfg.effectiveHlsBaseUrl || cfg.hlsBaseUrl || DEFAULT_LOCAL_HLS,
-          clipsBaseUrl: cfg.clipsBaseUrl || (cfg.hlsBaseUrl ? cfg.hlsBaseUrl.replace('/hls', '/clips') : DEFAULT_LOCAL_CLIPS),
-          recordingsBaseUrl: cfg.recordingsBaseUrl || (cfg.hlsBaseUrl ? cfg.hlsBaseUrl.replace('/hls', '/recordings') : DEFAULT_LOCAL_RECORDINGS),
+          clipsBaseUrl: cfg.clipsBaseUrl || (cfg.hlsBaseUrl ? cfg.hlsBaseUrl.replace(/\/hls\/?$/, '/clips') : DEFAULT_LOCAL_CLIPS),
+          recordingsBaseUrl: cfg.recordingsBaseUrl || (cfg.hlsBaseUrl ? cfg.hlsBaseUrl.replace(/\/hls\/?$/, '/recordings') : DEFAULT_LOCAL_RECORDINGS),
           message: cfg.message || ''
         };
 
@@ -45,19 +77,26 @@ export async function fetchMediaConfig(forceRefresh = false) {
       fetchPromise = null;
     }
 
-    // Attempt localStorage cache
-    if (!cachedConfig && typeof window !== 'undefined' && window.localStorage) {
+    // Attempt localStorage cache if valid and not legacy
+    if (typeof window !== 'undefined' && window.localStorage) {
       try {
         const stored = localStorage.getItem('orbit_media_config');
         if (stored) {
-          cachedConfig = JSON.parse(stored);
-          return cachedConfig;
+          let containsLegacy = false;
+          for (const dead of LEGACY_DEAD_HOSTS) {
+            if (stored.includes(dead)) { containsLegacy = true; break; }
+          }
+          if (!containsLegacy) {
+            cachedConfig = JSON.parse(stored);
+            return cachedConfig;
+          }
         }
       } catch (e) {}
     }
 
-    // Default fallback
+    // Default local fallback
     cachedConfig = {
+      _fetchedFromServer: false,
       isConfigured: false,
       isCustomConfigured: false,
       rtmpUrl: DEFAULT_LOCAL_RTMP,
@@ -83,13 +122,20 @@ export function getMediaConfig() {
     try {
       const stored = localStorage.getItem('orbit_media_config');
       if (stored) {
-        cachedConfig = JSON.parse(stored);
-        return cachedConfig;
+        let containsLegacy = false;
+        for (const dead of LEGACY_DEAD_HOSTS) {
+          if (stored.includes(dead)) { containsLegacy = true; break; }
+        }
+        if (!containsLegacy) {
+          cachedConfig = JSON.parse(stored);
+          return cachedConfig;
+        }
       }
     } catch (e) {}
   }
 
   return {
+    _fetchedFromServer: false,
     isConfigured: false,
     isCustomConfigured: false,
     rtmpUrl: DEFAULT_LOCAL_RTMP,
@@ -100,44 +146,60 @@ export function getMediaConfig() {
 }
 
 /**
- * Get active clips base URL (respects manual localStorage override if set).
+ * Get active clips base URL (respects manual localStorage override if set and valid).
  */
 export function getClipsBaseUrl() {
   if (typeof window !== 'undefined' && window.localStorage) {
     const override = localStorage.getItem('orbit_clips_base');
-    if (override) return override.replace(/\/+$/, '');
+    if (override && !LEGACY_DEAD_HOSTS.some(d => override.includes(d))) {
+      return override.replace(/\/+$/, '');
+    }
   }
   const cfg = getMediaConfig();
   return (cfg.clipsBaseUrl || DEFAULT_LOCAL_CLIPS).replace(/\/+$/, '');
 }
 
 /**
- * Get active recordings base URL (respects manual localStorage override if set).
+ * Get active recordings base URL (respects manual localStorage override if set and valid).
  */
 export function getRecordingsBaseUrl() {
   if (typeof window !== 'undefined' && window.localStorage) {
     const override = localStorage.getItem('orbit_recordings_base');
-    if (override) return override.replace(/\/+$/, '');
+    if (override && !LEGACY_DEAD_HOSTS.some(d => override.includes(d))) {
+      return override.replace(/\/+$/, '');
+    }
   }
   const cfg = getMediaConfig();
   return (cfg.recordingsBaseUrl || DEFAULT_LOCAL_RECORDINGS).replace(/\/+$/, '');
 }
 
 /**
- * Get active HLS base URL (respects manual localStorage override if set).
+ * Get active HLS base URL (respects manual localStorage override if set and valid).
  */
 export function getHlsBaseUrl() {
   if (typeof window !== 'undefined' && window.localStorage) {
     const override = localStorage.getItem('orbit_hls_base');
-    if (override) return override.replace(/\/+$/, '');
+    if (override && !LEGACY_DEAD_HOSTS.some(d => override.includes(d))) {
+      return override.replace(/\/+$/, '');
+    }
   }
   const cfg = getMediaConfig();
   return (cfg.hlsBaseUrl || DEFAULT_LOCAL_HLS).replace(/\/+$/, '');
 }
 
 /**
+ * Checks whether the given media URL will be blocked by browser Mixed Content policies.
+ */
+export function isMixedContentMedia(url) {
+  if (!url) return false;
+  const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  if (!isHttpsPage) return false;
+  return url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1');
+}
+
+/**
  * Resolves any media URL (clip, thumbnail, or VOD recording) to use the
- * active media server base URL from the config endpoint.
+ * active media server base URL from the backend config endpoint.
  *
  * @param {string|null} rawUrl
  * @returns {string}
@@ -162,14 +224,7 @@ export function resolveMediaUrl(rawUrl) {
     }
   }
 
-  // Handle localhost:8080 URLs when page is served over HTTPS
-  if (isHttpsPage && url.startsWith('http://localhost:8080/')) {
-    const path = url.replace('http://localhost:8080/', '');
-    const mediaHost = clipsBase.substring(0, clipsBase.lastIndexOf('/')) || clipsBase;
-    return `${mediaHost}/${path}`;
-  }
-
-  // Prevent mixed content warnings on HTTPS pages
+  // Prevent mixed content warnings on HTTPS pages for remote domains (e.g. CDNs)
   if (isHttpsPage && url.startsWith('http://') && !url.includes('localhost') && !url.includes('127.0.0.1')) {
     url = url.replace('http://', 'https://');
   }

@@ -3,6 +3,7 @@ import { clipApi } from '../api/clip.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { openClipPlayerModal, closeClipPlayerModal } from '../components/ClipPlayerModal.js';
 import { DEFAULT_BANNER, attachMediaImages } from '../utils/mediaImage.js';
+import { fetchMediaConfig } from '../utils/mediaConfig.js';
 
 export { openClipPlayerModal, closeClipPlayerModal };
 
@@ -20,7 +21,10 @@ export function renderClipsFeedView() {
 }
 
 export function setupClipsFeedEvents() {
-  document.getElementById('refresh-clips-btn')?.addEventListener('click', () => loadClips());
+  document.getElementById('refresh-clips-btn')?.addEventListener('click', async () => {
+    await fetchMediaConfig(true).catch(() => {});
+    loadClips();
+  });
   loadClips();
 }
 
@@ -29,6 +33,7 @@ async function loadClips() {
   if (!grid) return;
   grid.innerHTML = '<div class="spinner" style="grid-column:1/-1;"></div>';
   try {
+    await fetchMediaConfig().catch(() => {});
     const clips = await clipApi.getTop(30);
     currentClips = clips || [];
     if (!currentClips.length) {

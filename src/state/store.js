@@ -3,9 +3,16 @@ import { channelApi } from '../api/channel.js';
 
 class Store {
   constructor() {
+    const validViews = ['splash', 'login', 'register', 'otp', 'forgot-password', 'reset-password', 'home', 'watch', 'categories', 'category-detail', 'clips', 'channel', 'studio', 'profile', 'search', 'admin', 'mod'];
+    const initialHash = (typeof window !== 'undefined' && window.location.hash.replace(/^#\/?/, '')) || '';
+    let startView = getCurrentUser() ? 'home' : 'splash';
+    if (initialHash && validViews.includes(initialHash)) {
+      startView = initialHash;
+    }
+
     this.state = {
       currentUser: getCurrentUser(),
-      currentView: getCurrentUser() ? 'home' : 'splash',
+      currentView: startView,
       viewParams: {},
       activeStream: null,
       sidebarCollapsed: false,
@@ -135,9 +142,17 @@ class Store {
 
 export const store = new Store();
 
-// Handle browser back/forward
+// Handle browser back/forward and hash changes
 window.addEventListener('popstate', (e) => {
   if (e.state && e.state.view) {
     store.setState({ currentView: e.state.view, viewParams: e.state.params || {} });
+  }
+});
+
+window.addEventListener('hashchange', () => {
+  const hashView = window.location.hash.replace(/^#\/?/, '');
+  const validViews = ['splash', 'login', 'register', 'otp', 'forgot-password', 'reset-password', 'home', 'watch', 'categories', 'category-detail', 'clips', 'channel', 'studio', 'profile', 'search', 'admin', 'mod'];
+  if (hashView && validViews.includes(hashView) && hashView !== store.getState().currentView) {
+    store.setState({ currentView: hashView });
   }
 });
