@@ -63,6 +63,102 @@ function resetHideControlsTimer() {
   }
 }
 
+function formatDvrTime(seconds) {
+  if (isNaN(seconds) || seconds < 0) seconds = 0;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function updateDvrTimeline() {
+  const video = document.getElementById('stream-video');
+  if (!video || playerControlsState.isYt) return;
+  if (!video.seekable || video.seekable.length === 0) return;
+
+  const seekStart = video.seekable.start(0);
+  const seekEnd = video.seekable.end(0);
+  const duration = Math.max(1, seekEnd - seekStart);
+  const current = Math.min(seekEnd, Math.max(seekStart, video.currentTime));
+
+  const progressPct = Math.max(0, Math.min(100, ((current - seekStart) / duration) * 100));
+  const progressEl = document.getElementById('orbit-dvr-progress');
+  const handleEl = document.getElementById('orbit-dvr-handle');
+  const liveBadge = document.getElementById('orbit-ctrl-live-badge');
+  const liveDot = document.getElementById('orbit-live-dot');
+  const liveText = document.getElementById('orbit-live-text');
+  const timeDisplay = document.getElementById('orbit-dvr-time-display');
+
+  if (progressEl) progressEl.style.width = `${progressPct}%`;
+  if (handleEl) handleEl.style.left = `${progressPct}%`;
+
+  // Update buffered bar
+  const bufferedEl = document.getElementById('orbit-dvr-buffered');
+  if (bufferedEl && video.buffered && video.buffered.length > 0) {
+    try {
+      const bufEnd = video.buffered.end(video.buffered.length - 1);
+      const bufPct = Math.max(0, Math.min(100, ((bufEnd - seekStart) / duration) * 100));
+      bufferedEl.style.width = `${bufPct}%`;
+    } catch (_) {}
+  }
+
+  const diffFromLive = Math.round(seekEnd - current);
+  if (diffFromLive <= 5) {
+    // AT LIVE EDGE
+    if (liveBadge) {
+      liveBadge.title = 'You are currently at the live edge (L)';
+      liveBadge.style.background = 'rgba(255, 20, 0, 0.2)';
+      liveBadge.style.borderColor = 'rgba(255, 20, 0, 0.5)';
+      liveBadge.style.color = '#ff3b30';
+    }
+    if (liveDot) {
+      liveDot.style.background = '#ff3b30';
+      liveDot.style.boxShadow = '0 0 8px #ff3b30';
+      liveDot.style.animation = 'pulseLive 1.5s infinite';
+    }
+    if (liveText) liveText.textContent = 'LIVE';
+    if (timeDisplay) timeDisplay.textContent = 'LIVE';
+  } else {
+    // BEHIND LIVE (REWOUND DVR)
+    if (liveBadge) {
+      liveBadge.title = 'Rewound broadcast — Click to jump back to LIVE (L)';
+      liveBadge.style.background = 'rgba(255, 180, 0, 0.2)';
+      liveBadge.style.borderColor = 'rgba(255, 180, 0, 0.6)';
+      liveBadge.style.color = '#ffb400';
+    }
+    if (liveDot) {
+      liveDot.style.background = '#ffb400';
+      liveDot.style.boxShadow = '0 0 8px #ffb400';
+      liveDot.style.animation = 'none';
+    }
+    if (liveText) liveText.textContent = `⟲ LIVE (-${formatDvrTime(diffFromLive)})`;
+    if (timeDisplay) timeDisplay.textContent = `-${formatDvrTime(diffFromLive)}`;
+  }
+}
+
+function jumpToLive() {
+  const video = document.getElementById('stream-video');
+  if (!video || !video.seekable || video.seekable.length === 0) return;
+  const seekEnd = video.seekable.end(0);
+  video.currentTime = Math.max(0, seekEnd - 0.5);
+  video.play().catch(() => {});
+  updateDvrTimeline();
+  store.showToast('Synced to Live broadcast', 'info');
+}
+
+function seekRelative(seconds) {
+  const video = document.getElementById('stream-video');
+  if (!video || !video.seekable || video.seekable.length === 0) return;
+  const seekStart = video.seekable.start(0);
+  const seekEnd = video.seekable.end(0);
+  const target = Math.max(seekStart, Math.min(seekEnd - 0.5, video.currentTime + seconds));
+  video.currentTime = target;
+  updateDvrTimeline();
+}
+
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)
@@ -84,17 +180,47 @@ export function renderWatchRoomView() {
         <div class="player-wrapper" id="player-container" style="position:relative;border-radius:0;aspect-ratio:16/9;background:#000;overflow:hidden;">
           <video id="stream-video" style="width:100%;height:100%;background:#000;" autoplay playsinline></video>
 
-          <!-- Authentic Orbit Stream Controls Overlay (Kick & Twitch style) -->
+          <!-- Authentic Orbit Stream Controls Overlay (Kick & Twitch style with Live DVR) -->
           <div id="orbit-player-controls" class="orbit-player-controls-overlay" style="position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:flex-end;z-index:10;opacity:0;transition:opacity 0.25s ease;">
-            <div style="pointer-events:auto;background:linear-gradient(180deg, transparent 0%, rgba(4,7,18,0.85) 40%, rgba(4,7,18,0.96) 100%);padding:24px 20px 14px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
-              <!-- Left: Play/Pause, Live Badge, Volume -->
-              <div style="display:flex;align-items:center;gap:12px;">
+            <!-- DVR Scrubber Bar Area -->
+            <div id="orbit-dvr-scrubber-area" style="pointer-events:auto;position:relative;width:100%;height:18px;display:flex;align-items:center;cursor:pointer;padding:0 16px;box-sizing:border-box;">
+              <!-- Scrubber Track Background -->
+              <div id="orbit-dvr-track" style="position:relative;width:100%;height:5px;background:rgba(255,255,255,0.22);border-radius:3px;overflow:visible;">
+                <!-- Buffered Range Fill -->
+                <div id="orbit-dvr-buffered" style="position:absolute;left:0;top:0;height:100%;width:0%;background:rgba(255,255,255,0.35);border-radius:3px;pointer-events:none;"></div>
+                <!-- Progress Fill (Cyan Neon Gradient) -->
+                <div id="orbit-dvr-progress" style="position:absolute;left:0;top:0;height:100%;width:100%;background:linear-gradient(90deg, #00f2fe, #00aebd);border-radius:3px;pointer-events:none;"></div>
+                <!-- Scrubber Handle / Thumb -->
+                <div id="orbit-dvr-handle" style="position:absolute;top:50%;left:100%;transform:translate(-50%, -50%);width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 0 10px rgba(0,242,254,0.9);pointer-events:none;"></div>
+              </div>
+              <!-- Floating Hover Timestamp Preview Tooltip -->
+              <div id="orbit-dvr-tooltip" style="display:none;position:absolute;bottom:24px;transform:translateX(-50%);background:rgba(4,7,18,0.95);border:1px solid rgba(0,242,254,0.4);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:#fff;pointer-events:none;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:20;">--:--</div>
+            </div>
+
+            <!-- Controls Bottom Bar -->
+            <div style="pointer-events:auto;background:linear-gradient(180deg, transparent 0%, rgba(4,7,18,0.85) 40%, rgba(4,7,18,0.96) 100%);padding:10px 20px 14px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+              <!-- Left: Play/Pause, Rewind -10s, Forward +10s, Live Badge, Time Display, Volume -->
+              <div style="display:flex;align-items:center;gap:10px;">
                 <button id="orbit-ctrl-play" title="Play/Pause (Space)" class="orbit-ctrl-btn">
                   <span id="orbit-play-icon" style="font-size:18px;">⏸</span>
                 </button>
-                
-                <div id="orbit-ctrl-live-badge" title="Live Broadcast" style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:4px;background:rgba(255,20,0,0.2);border:1px solid rgba(255,20,0,0.5);font-size:11px;font-weight:700;color:#ff3b30;letter-spacing:0.05em;cursor:default;">
-                  <span style="width:7px;height:7px;border-radius:50%;background:#ff3b30;display:inline-block;box-shadow:0 0 8px #ff3b30;animation:pulseLive 1.5s infinite;"></span>
+
+                <button id="orbit-ctrl-rewind-10" title="Rewind 10 seconds (Left Arrow)" class="orbit-ctrl-btn" style="font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);">
+                  ⟲ 10s
+                </button>
+
+                <button id="orbit-ctrl-forward-10" title="Forward 10 seconds (Right Arrow)" class="orbit-ctrl-btn" style="font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);">
+                  10s ⟳
+                </button>
+
+                <!-- Clickable Live Badge: clicking syncs directly to live edge -->
+                <button id="orbit-ctrl-live-badge" title="Click to jump to live broadcast (L)" style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;background:rgba(255,20,0,0.2);border:1px solid rgba(255,20,0,0.5);font-size:11px;font-weight:700;color:#ff3b30;letter-spacing:0.05em;cursor:pointer;transition:all 0.2s ease;">
+                  <span id="orbit-live-dot" style="width:7px;height:7px;border-radius:50%;background:#ff3b30;display:inline-block;box-shadow:0 0 8px #ff3b30;animation:pulseLive 1.5s infinite;"></span>
+                  <span id="orbit-live-text">LIVE</span>
+                </button>
+
+                <!-- Time display (e.g. -01:45 behind live, or LIVE) -->
+                <div id="orbit-dvr-time-display" style="font-size:12px;font-weight:600;color:var(--color-text-muted,#aaa);font-variant-numeric:tabular-nums;min-width:55px;">
                   LIVE
                 </div>
 
@@ -350,6 +476,110 @@ export function setupWatchRoomEvents() {
     }
   });
 
+  // DVR Rewind / Forward / Live edge sync buttons
+  document.getElementById('orbit-ctrl-rewind-10')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    seekRelative(-10);
+    resetHideControlsTimer();
+  });
+
+  document.getElementById('orbit-ctrl-forward-10')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    seekRelative(10);
+    resetHideControlsTimer();
+  });
+
+  document.getElementById('orbit-ctrl-live-badge')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    jumpToLive();
+    resetHideControlsTimer();
+  });
+
+  // DVR Timeline Scrubber & Tooltip wiring
+  const scrubberArea = document.getElementById('orbit-dvr-scrubber-area');
+  const dvrTooltip = document.getElementById('orbit-dvr-tooltip');
+  let isScrubbing = false;
+
+  const seekFromEvent = (e) => {
+    if (!videoEl || !videoEl.seekable || videoEl.seekable.length === 0) return;
+    const rect = scrubberArea.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const seekStart = videoEl.seekable.start(0);
+    const seekEnd = videoEl.seekable.end(0);
+    const target = seekStart + pct * (seekEnd - seekStart);
+    videoEl.currentTime = Math.min(seekEnd - 0.5, target);
+    updateDvrTimeline();
+  };
+
+  scrubberArea?.addEventListener('mousedown', (e) => {
+    isScrubbing = true;
+    seekFromEvent(e);
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (isScrubbing) {
+      seekFromEvent(e);
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isScrubbing) {
+      isScrubbing = false;
+      resetHideControlsTimer();
+    }
+  });
+
+  scrubberArea?.addEventListener('mousemove', (e) => {
+    if (!videoEl || !videoEl.seekable || videoEl.seekable.length === 0) return;
+    const rect = scrubberArea.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const seekStart = videoEl.seekable.start(0);
+    const seekEnd = videoEl.seekable.end(0);
+    const target = seekStart + pct * (seekEnd - seekStart);
+    const diffFromLive = Math.round(seekEnd - target);
+
+    if (dvrTooltip) {
+      dvrTooltip.style.display = 'block';
+      dvrTooltip.style.left = `${pct * 100}%`;
+      dvrTooltip.textContent = diffFromLive <= 5 ? 'LIVE' : `-${formatDvrTime(diffFromLive)}`;
+    }
+  });
+
+  scrubberArea?.addEventListener('mouseleave', () => {
+    if (dvrTooltip) dvrTooltip.style.display = 'none';
+  });
+
+  // Keyboard controls for streaming (Kick & Twitch standard)
+  const handleWatchKeydown = (e) => {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) {
+      return;
+    }
+    if (e.key === ' ' || e.code === 'Space') {
+      e.preventDefault();
+      togglePlay();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      seekRelative(-10);
+      resetHideControlsTimer();
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      seekRelative(10);
+      resetHideControlsTimer();
+    } else if (e.key === 'l' || e.key === 'L') {
+      e.preventDefault();
+      jumpToLive();
+      resetHideControlsTimer();
+    } else if (e.key === 'm' || e.key === 'M') {
+      e.preventDefault();
+      toggleMute();
+    } else if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault();
+      fsBtn?.click();
+    }
+  };
+  window.addEventListener('keydown', handleWatchKeydown);
+
   playerContainer?.addEventListener('mousemove', resetHideControlsTimer);
   playerContainer?.addEventListener('mouseenter', resetHideControlsTimer);
   playerContainer?.addEventListener('mouseleave', () => {
@@ -560,7 +790,10 @@ async function initPlayer(stream) {
         },
         enableWorker: true,
         lowLatencyMode: true,
-        backBufferLength: 60,
+        backBufferLength: 14400,
+        liveBackBufferLength: 14400,
+        liveSyncDurationCount: 3,
+        liveMaxLatencyDurationCount: 10,
         manifestLoadingMaxRetry: 10,
         manifestLoadingRetryDelay: 1500
       });
@@ -568,6 +801,11 @@ async function initPlayer(stream) {
       activeHls = hls;
       hls.loadSource(hlsSource);
       hls.attachMedia(video);
+
+      video.ontimeupdate = updateDvrTimeline;
+      video.onprogress = updateDvrTimeline;
+      video.onseeking = updateDvrTimeline;
+      video.onseeked = updateDvrTimeline;
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         offlineEl?.classList.add('hidden');
