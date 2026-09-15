@@ -1149,12 +1149,22 @@ function showSliceModal(streamId, channelId) {
     btn.disabled = true;
     btn.textContent = 'Generating...';
     try {
-      const sIdNum = parseInt(streamId);
-      const chIdNum = channelId ? parseInt(channelId) : undefined;
+      const activeS = store.getState().activeStream;
+      const sIdNum = parseInt(streamId) || activeS?.id;
+      const chIdNum = channelId ? parseInt(channelId) : (activeS?.channelId || activeS?.channel?.id);
+      const streamKey = activeS?.channel?.streamKey || activeS?.streamKey || '';
+      const isLive = activeS?.isLive ?? true;
+      const recordingFileName = activeS?.recordingFileName || activeS?.videoUrl || null;
+      const categoryId = activeS?.categoryId || activeS?.category?.id || null;
+
       await clipApi.slice({
         streamId: sIdNum,
         liveStreamId: sIdNum,
         channelId: chIdNum,
+        streamKey,
+        isLive,
+        recordingFileName,
+        categoryId,
         title: overlay.querySelector('#slice-title').value.trim() || 'Untitled Clip',
         durationSeconds: parseInt(overlay.querySelector('#slice-duration').value) || 60
       });

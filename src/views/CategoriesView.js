@@ -127,7 +127,7 @@ async function loadBrowseData(showSpinner = false) {
 
   try {
     const [streams, cats] = await Promise.all([
-      streamApi.getActiveStreams().catch(() => []),
+      (typeof streamApi.getActiveStreams === 'function' ? streamApi.getActiveStreams() : (typeof streamApi.getLiveStreams === 'function' ? streamApi.getLiveStreams() : Promise.resolve([]))).catch(() => []),
       categoryApi.getAll().catch(() => [])
     ]);
 

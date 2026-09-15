@@ -1,6 +1,7 @@
-﻿import { apiClient } from './client.js';
+import { apiClient } from './client.js';
 export const streamApi = {
   getLiveStreams: () => apiClient('/api/Stream/live'),
+  getActiveStreams: () => apiClient('/api/Stream/live'),
   getStreamById: (id) => apiClient(`/api/Stream/${id}`),
   createStream: (data) => apiClient('/api/Stream/create', { method: 'POST', body: JSON.stringify(data) }),
   updateCurrentStream: (data) => apiClient('/api/Stream/current', { method: 'PATCH', body: JSON.stringify(data) }),
