@@ -12,6 +12,8 @@ let chatConnection = null;
 let activeHls = null;
 let currentStreamId = null;
 let currentChannelId = null;
+let offlinePollTimer = null;
+let manifestRetryTimer = null;
 
 function escapeHtml(str) {
   if (!str) return '';
@@ -112,18 +114,30 @@ export function setupWatchRoomEvents() {
   const streamId = params?.streamId;
   const stream = store.getState().activeStream;
 
-  // Cleanup old connections if switching rooms
+  // Cleanup old connections & timers if switching rooms
   if (chatConnection) {
     if (currentStreamId) chatConnection.invoke('LeaveStream', currentStreamId).catch(() => {});
     chatConnection.stop().catch(() => {});
     chatConnection = null;
+  }
+  if (activeHls) {
+    activeHls.destroy();
+    activeHls = null;
+  }
+  if (offlinePollTimer) {
+    clearInterval(offlinePollTimer);
+    offlinePollTimer = null;
+  }
+  if (manifestRetryTimer) {
+    clearTimeout(manifestRetryTimer);
+    manifestRetryTimer = null;
   }
 
   const onStreamReady = (s) => {
     if (!s) return;
     currentStreamId = s.id;
     currentChannelId = s.channelId;
-    store.setActiveStream(s);
+    store.state.activeStream = s;
     updateStreamUI(s);
     initPlayer(s);
     initChat(s.channelId, s.id);
@@ -131,13 +145,22 @@ export function setupWatchRoomEvents() {
     setupBroadcasterControls(s);
   };
 
-  if (streamId && (!stream || stream.id !== parseInt(streamId))) {
-    streamApi.getStreamById(streamId).then(s => {
-      onStreamReady(s);
-    }).catch(err => {
-      console.warn('Could not load stream details:', err);
-      document.getElementById('player-offline')?.classList.remove('hidden');
-    });
+  if (streamId) {
+    const sIdNum = parseInt(streamId);
+    if (!stream || stream.id !== sIdNum) {
+      streamApi.getStreamById(streamId).then(s => {
+        onStreamReady(s);
+      }).catch(err => {
+        console.warn('Could not load stream details:', err);
+        if (stream) {
+          onStreamReady(stream);
+        } else {
+          document.getElementById('player-offline')?.classList.remove('hidden');
+        }
+      });
+    } else {
+      onStreamReady(stream);
+    }
   } else if (stream) {
     onStreamReady(stream);
   }
@@ -253,9 +276,46 @@ function updateStreamUI(stream) {
 }
 
 async function initPlayer(stream) {
+  const offlineEl = document.getElementById('player-offline');
+
   if (!stream?.hlsUrl) {
-    document.getElementById('player-offline')?.classList.remove('hidden');
+    if (offlineEl) {
+      offlineEl.classList.remove('hidden');
+      const p = offlineEl.querySelector('p');
+      const currentUser = getCurrentUser();
+      const isOwner = currentUser && stream && (
+        stream.streamerId === currentUser.id ||
+        stream.streamerName === currentUser.fullName ||
+        stream.channelId === currentUser.channelId
+      );
+      if (p) {
+        p.textContent = isOwner
+          ? 'Stream session ready. Click "Start Streaming" in OBS to go live.'
+          : 'The broadcaster is not currently streaming.';
+      }
+    }
+
+    // Auto-poll for stream starting in the background
+    if (stream?.id && !offlinePollTimer) {
+      offlinePollTimer = setInterval(async () => {
+        try {
+          const fresh = await streamApi.getStreamById(stream.id);
+          if (fresh && fresh.isLive && fresh.hlsUrl) {
+            clearInterval(offlinePollTimer);
+            offlinePollTimer = null;
+            store.state.activeStream = fresh;
+            updateStreamUI(fresh);
+            initPlayer(fresh);
+          }
+        } catch (_) {}
+      }, 3000);
+    }
     return;
+  }
+
+  if (offlinePollTimer) {
+    clearInterval(offlinePollTimer);
+    offlinePollTimer = null;
   }
 
   let hlsSource = stream.hlsUrl;
@@ -273,7 +333,6 @@ async function initPlayer(stream) {
     activeHls = null;
   }
 
-  const offlineEl = document.getElementById('player-offline');
   const unmuteBtn = document.getElementById('player-unmute-btn');
 
   video.muted = true;
@@ -296,7 +355,9 @@ async function initPlayer(stream) {
         },
         enableWorker: true,
         lowLatencyMode: true,
-        backBufferLength: 60
+        backBufferLength: 60,
+        manifestLoadingMaxRetry: 10,
+        manifestLoadingRetryDelay: 1500
       });
 
       activeHls = hls;
@@ -315,7 +376,13 @@ async function initPlayer(stream) {
           console.warn('[WatchRoom] HLS fatal error:', data.type, data.details);
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              hls.startLoad();
+              // Give NGINX 2 seconds before retrying manifest while initial chunk is written
+              if (manifestRetryTimer) clearTimeout(manifestRetryTimer);
+              manifestRetryTimer = setTimeout(() => {
+                if (activeHls) {
+                  activeHls.startLoad();
+                }
+              }, 2000);
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               hls.recoverMediaError();
@@ -488,6 +555,64 @@ async function initChat(channelId, streamId) {
 
     chatConnection.on('Error', (errorMsg) => {
       store.showToast(errorMsg, 'error');
+    });
+
+    chatConnection.onreconnecting((err) => {
+      console.warn('[Chat] SignalR reconnecting:', err);
+      if (statusEl) {
+        statusEl.textContent = 'Reconnecting...';
+        statusEl.style.color = '#f59e0b';
+      }
+    });
+
+    chatConnection.onreconnected(() => {
+      console.log('[Chat] SignalR reconnected');
+      if (statusEl) {
+        statusEl.textContent = 'Connected';
+        statusEl.style.color = 'var(--color-success, #10b981)';
+      }
+      chatConnection.invoke('JoinStream', streamId).catch(console.warn);
+    });
+
+    chatConnection.onclose((err) => {
+      console.warn('[Chat] SignalR connection closed:', err);
+      if (statusEl) {
+        statusEl.textContent = 'Disconnected';
+        statusEl.style.color = 'var(--color-error, #ef4444)';
+      }
+    });
+
+    // Real-time broadcast when the streamer starts or restarts OBS
+    chatConnection.on('StreamStarted', (data) => {
+      console.log('[WatchRoom] SignalR StreamStarted received:', data);
+      if (data && (data.streamId === streamId || !streamId)) {
+        if (offlinePollTimer) {
+          clearInterval(offlinePollTimer);
+          offlinePollTimer = null;
+        }
+        const activeS = store.getState().activeStream || {};
+        const updated = {
+          ...activeS,
+          ...data,
+          isLive: true,
+          hlsUrl: data.hlsUrl || activeS.hlsUrl
+        };
+        store.state.activeStream = updated;
+        updateStreamUI(updated);
+        initPlayer(updated);
+        store.showToast('The stream is now LIVE!', 'success');
+      }
+    });
+
+    chatConnection.on('StreamEnded', (sid) => {
+      if (sid === streamId) {
+        if (activeHls) { activeHls.destroy(); activeHls = null; }
+        document.getElementById('player-offline')?.classList.remove('hidden');
+        const meta = document.getElementById('watch-meta');
+        const badge = meta?.querySelector('.badge-live');
+        if (badge) badge.style.display = 'none';
+        store.showToast('Live stream has ended.', 'info');
+      }
     });
 
     await chatConnection.start();

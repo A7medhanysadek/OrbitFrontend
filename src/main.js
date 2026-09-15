@@ -43,31 +43,57 @@ const viewMap = {
   'mod': { render: renderModView, setup: setupModEvents },
 };
 
+let currentRenderedView = null;
+let currentRenderedParamsStr = null;
+let currentRenderedUserToken = null;
+
 function renderApp() {
   const state = store.getState();
   const currentView = state.currentView;
   const isAuth = authViews.includes(currentView);
   const entry = viewMap[currentView] || viewMap['home'];
+  const userToken = state.currentUser ? (state.currentUser.id || state.currentUser.token || 'user') : 'guest';
+  const paramsStr = JSON.stringify(state.viewParams || {});
 
-  if (isAuth) {
-    appEl.innerHTML = `<div class="page-enter">${entry.render()}</div>`;
-  } else {
-    const collapsed = state.sidebarCollapsed;
-    appEl.innerHTML = `
-      <div class="app-layout">
-        ${renderSidebar()}
-        <div class="app-main ${collapsed ? 'sidebar-collapsed' : ''}">
-          ${renderTopbar()}
-          <div class="app-content page-enter" id="view-content">
-            ${entry.render()}
+  const viewChanged = (currentView !== currentRenderedView) ||
+                      (paramsStr !== currentRenderedParamsStr) ||
+                      (userToken !== currentRenderedUserToken);
+
+  if (viewChanged) {
+    currentRenderedView = currentView;
+    currentRenderedParamsStr = paramsStr;
+    currentRenderedUserToken = userToken;
+
+    if (isAuth) {
+      appEl.innerHTML = `<div class="page-enter">${entry.render()}</div>`;
+    } else {
+      const collapsed = state.sidebarCollapsed;
+      appEl.innerHTML = `
+        <div class="app-layout">
+          ${renderSidebar()}
+          <div class="app-main ${collapsed ? 'sidebar-collapsed' : ''}">
+            ${renderTopbar()}
+            <div class="app-content page-enter" id="view-content">
+              ${entry.render()}
+            </div>
           </div>
         </div>
-      </div>
-    `;
-    setupNavEvents();
-  }
+      `;
+      setupNavEvents();
+    }
 
-  if (entry.setup) entry.setup();
+    if (entry.setup) entry.setup();
+  } else {
+    // If only sidebar collapsed changed, toggle class without tearing down page DOM
+    const appMain = document.querySelector('.app-main');
+    if (appMain) {
+      if (state.sidebarCollapsed) {
+        appMain.classList.add('sidebar-collapsed');
+      } else {
+        appMain.classList.remove('sidebar-collapsed');
+      }
+    }
+  }
 }
 
 store.subscribe(() => renderApp());
