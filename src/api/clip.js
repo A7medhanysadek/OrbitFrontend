@@ -28,6 +28,7 @@ export const clipApi = {
 
       for (const ep of endpoints) {
         try {
+          console.log(`[clipApi] Attempting direct slice on: ${ep}`);
           const res = await fetch(ep, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -43,16 +44,23 @@ export const clipApi = {
           if (res.ok) {
             const json = await res.json();
             if (json && (json.success || json.clipUrl)) {
+              console.log(`[clipApi] Direct slice succeeded on ${ep}:`, json);
               sliceResult = json;
               break;
             }
+          } else {
+            const errTxt = await res.text().catch(() => '');
+            console.warn(`[clipApi] ${ep} responded with HTTP ${res.status}:`, errTxt);
           }
-        } catch (_) {}
+        } catch (epErr) {
+          console.warn(`[clipApi] Failed to reach ${ep}:`, epErr.message);
+        }
       }
 
       if (sliceResult && sliceResult.clipUrl) {
         const fullClipUrl = resolveMediaUrl(sliceResult.clipUrl);
         const fullThumbUrl = sliceResult.thumbnailUrl ? resolveMediaUrl(sliceResult.thumbnailUrl) : null;
+        console.log('[clipApi] Registering created clip with backend API...');
 
         return await apiClient('/api/Clip/create', {
           method: 'POST',
@@ -68,7 +76,7 @@ export const clipApi = {
         });
       }
 
-      throw err;
+      throw new Error('Media server is not responding to clipping requests. Please verify the streaming server is running.');
     }
   },
   getChannelClips: (channelId, page = 1, size = 20) => apiClient(`/api/Clip/channel/${channelId}?page=${page}&pageSize=${size}`),
