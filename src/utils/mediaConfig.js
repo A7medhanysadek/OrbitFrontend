@@ -241,6 +241,7 @@ export function resolveMediaUrl(rawUrl) {
 
   const clipsBase = getClipsBaseUrl();
   const recordingsBase = getRecordingsBaseUrl();
+  const hlsBase = getHlsBaseUrl();
 
   if (url.includes('/clips/')) {
     const fileName = url.substring(url.lastIndexOf('/clips/') + 7);
@@ -251,6 +252,11 @@ export function resolveMediaUrl(rawUrl) {
     const fileName = url.substring(url.lastIndexOf('/recordings/') + 12);
     if (fileName) {
       return `${recordingsBase}/${fileName}`;
+    }
+  } else if (url.includes('/hls/')) {
+    const fileName = url.substring(url.lastIndexOf('/hls/') + 5);
+    if (fileName) {
+      return `${hlsBase}/${fileName}`;
     }
   }
 

@@ -39,8 +39,18 @@ export async function loadMediaImage(imgElement, originalUrl, fallback = DEFAULT
   const isNgrok = targetUrl.includes('ngrok-free.dev') || targetUrl.includes('ngrok.io');
   const isLocalhost = targetUrl.includes('localhost:') || targetUrl.includes('127.0.0.1:');
 
-  // External CDNs (Cloudinary, ImgBB, etc.) can be loaded directly
-  if (!isNgrok && !isLocalhost && !targetUrl.includes('/clips/') && !targetUrl.includes('/recordings/')) {
+  // External CDNs (YouTube, Cloudinary, ImgBB, etc.) can be loaded directly
+  if (targetUrl.includes('img.youtube.com') || targetUrl.includes('ytimg.com')) {
+    imgElement.referrerPolicy = 'no-referrer';
+    imgElement.src = targetUrl;
+    imgElement.onerror = () => {
+      imgElement.onerror = null;
+      imgElement.src = fallback;
+    };
+    return;
+  }
+
+  if (!isNgrok && !isLocalhost && !targetUrl.includes('/clips/') && !targetUrl.includes('/recordings/') && !targetUrl.includes('/hls/')) {
     imgElement.src = targetUrl;
     imgElement.onerror = () => {
       imgElement.onerror = null;
@@ -80,13 +90,17 @@ export async function loadMediaImage(imgElement, originalUrl, fallback = DEFAULT
       throw new Error(`HTTP ${res.status}`);
     }
 
-    const blob = await res.blob();
-    // Verify it's actually an image
-    if (blob.type.includes('html') || blob.type === 'text/plain') {
-      throw new Error(`Invalid image mime type: ${blob.type}`);
+    const rawBlob = await res.blob();
+    // Verify it's not HTML error page
+    if (rawBlob.type.includes('html')) {
+      throw new Error(`Invalid image mime type: ${rawBlob.type}`);
     }
 
-    const objectUrl = URL.createObjectURL(blob);
+    const finalBlob = (rawBlob.type === 'text/plain' || rawBlob.type === 'application/octet-stream') && targetUrl.match(/\.(jpg|jpeg|png|webp)/i)
+      ? new Blob([rawBlob], { type: 'image/jpeg' })
+      : rawBlob;
+
+    const objectUrl = URL.createObjectURL(finalBlob);
     blobCache.set(originalUrl, objectUrl);
     blobCache.set(targetUrl, objectUrl);
     imgElement.src = objectUrl;

@@ -9,7 +9,6 @@ export function renderSettingsView() {
   const chatSound = localStorage.getItem('orbit_pref_chat_sound') !== 'false';
   const chatFontSize = localStorage.getItem('orbit_pref_chat_font_size') || 'normal';
   const defaultVolume = localStorage.getItem('orbit_pref_volume') || '80';
-  const googleClientId = localStorage.getItem('orbit_google_client_id') || '';
 
   return `
     <div style="max-width:960px;margin:0 auto;padding:24px 16px;">
@@ -169,37 +168,6 @@ export function renderSettingsView() {
             </div>
           </div>
         </section>
-
-        <!-- 4. Google OAuth & Identity Configuration -->
-        <section class="card" style="padding:28px;">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-            <span style="color:var(--color-cyan-primary);font-size:20px;">${Icons.google}</span>
-            <h2 style="font-size:18px;color:#fff;margin:0;font-weight:700;">Google OAuth Configuration</h2>
-          </div>
-          <p style="color:var(--color-text-muted);font-size:13px;margin:0 0 20px;">
-            Provide your custom Google Cloud OAuth 2.0 Web Client ID to power the Google Sign-In & Sign-Up buttons.
-          </p>
-
-          <form id="google-client-id-form" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
-            <input
-              type="text"
-              id="google-client-id-input"
-              class="input-dark"
-              placeholder="e.g. 123456789-xyz.apps.googleusercontent.com"
-              value="${escapeHtml(googleClientId)}"
-              style="flex:1;min-width:280px;height:42px;padding:0 14px;border-radius:var(--radius-md);"
-            />
-            <button type="submit" class="btn btn-cyan btn-sm" style="height:42px;padding:0 20px;">
-              Save Client ID
-            </button>
-            <button type="button" id="google-client-id-clear" class="btn btn-ghost btn-sm" style="height:42px;">
-              Clear
-            </button>
-          </form>
-          <div style="font-size:12px;color:var(--color-text-muted);margin-top:8px;">
-            This ID is stored locally in your browser to initialize Google Identity Services SDK on the Login & Registration views.
-          </div>
-        </section>
       </div>
     </div>
   `;
@@ -261,21 +229,6 @@ export function setupSettingsEvents() {
   document.getElementById('pref-chat-font')?.addEventListener('change', (e) => {
     localStorage.setItem('orbit_pref_chat_font_size', e.target.value);
     store.showToast(`Chat font size set to ${e.target.value}`, 'info');
-  });
-
-  // Google Client ID Form
-  document.getElementById('google-client-id-form')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const val = document.getElementById('google-client-id-input')?.value?.trim() || '';
-    localStorage.setItem('orbit_google_client_id', val);
-    store.showToast('Google OAuth Client ID saved successfully!', 'success');
-  });
-
-  document.getElementById('google-client-id-clear')?.addEventListener('click', () => {
-    localStorage.removeItem('orbit_google_client_id');
-    const input = document.getElementById('google-client-id-input');
-    if (input) input.value = '';
-    store.showToast('Google OAuth Client ID cleared', 'info');
   });
 }
 

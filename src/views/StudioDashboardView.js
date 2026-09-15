@@ -24,6 +24,24 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function parseUtcDate(dateInput) {
+  if (!dateInput) return null;
+  if (dateInput instanceof Date) return dateInput;
+  let str = String(dateInput).trim();
+  if (!str) return null;
+  if (str.includes('T')) {
+    const parts = str.split('T');
+    const timePart = parts[1];
+    if (!timePart.includes('Z') && !timePart.includes('+') && !timePart.includes('-')) {
+      str = `${str}Z`;
+    }
+  } else if (!str.includes('Z') && !str.includes('+')) {
+    str = `${str}Z`;
+  }
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 export function renderStudioDashboardView() {
   const user = store.getState().currentUser;
   if (!user) {
@@ -597,7 +615,8 @@ async function loadLiveManager() {
       studioLiveDurationTimer = null;
     }
     if (isLive && (live.startedAt || live.createdAt)) {
-      const startMs = new Date(live.startedAt || live.createdAt).getTime();
+      const parsedStart = parseUtcDate(live.startedAt || live.createdAt);
+      const startMs = parsedStart ? parsedStart.getTime() : Date.now();
       const updateDuration = () => {
         const durationEl = document.getElementById('live-stream-duration');
         if (!durationEl) return;
@@ -1062,17 +1081,25 @@ async function renderAnalytics(ws) {
       ? pastStreamsRes.value
       : [];
 
-    // Calculate real data metrics from broadcast history
-    const totalPastBroadcastSeconds = pastStreams.reduce((acc, s) => acc + (s.durationSeconds || 0), 0);
-    const effectiveBroadcastHours = stats.totalBroadcastHours && stats.totalBroadcastHours !== '0.0 hrs' && stats.totalBroadcastHours !== '0h'
-      ? stats.totalBroadcastHours
-      : (totalPastBroadcastSeconds > 0 ? `${(totalPastBroadcastSeconds / 3600).toFixed(1)} hrs` : '0.0 hrs');
+    // Calculate real data metrics from broadcast history with saved VODs
+    const validVodStreams = pastStreams.filter(s => s.isSaved || (s.durationSeconds > 0 && s.durationSeconds < 86400 && s.vodUrl));
+    const totalVodSeconds = validVodStreams.length > 0
+      ? validVodStreams.reduce((acc, s) => acc + (s.durationSeconds || 0), 0)
+      : (summary.lifetimeStats?.totalBroadcastSeconds && summary.lifetimeStats.totalBroadcastSeconds < 86400 * 5
+          ? summary.lifetimeStats.totalBroadcastSeconds
+          : 0);
 
-    const pastPeaks = pastStreams.map(s => s.peakViewers || 0);
+    const effectiveBroadcastHours = totalVodSeconds > 0
+      ? `${(totalVodSeconds / 3600).toFixed(1)} hrs`
+      : '0.0 hrs';
+
+    const pastPeaks = pastStreams.map(s => s.peakViewers || 0).filter(p => p > 0);
     const effectiveAllTimePeak = Math.max(stats.allTimePeakViewers || 0, ...pastPeaks, 0);
-    const effectiveAvgPeak = pastPeaks.length > 0
-      ? (pastPeaks.reduce((a, b) => a + b, 0) / pastPeaks.length).toFixed(1)
-      : (stats.averagePeakViewers ? stats.averagePeakViewers.toFixed(1) : '0');
+    const effectiveAvgPeak = stats.averagePeakViewers && stats.averagePeakViewers > 0
+      ? stats.averagePeakViewers.toFixed(1)
+      : (pastPeaks.length > 0
+          ? (pastPeaks.reduce((a, b) => a + b, 0) / pastPeaks.length).toFixed(1)
+          : (effectiveAllTimePeak > 0 ? effectiveAllTimePeak.toFixed(1) : '0.0'));
 
     ws.innerHTML = `
       <div style="margin-bottom:24px;">
@@ -1387,17 +1414,19 @@ async function renderEmotes(ws) {
             <input class="input-dark" id="new-emote-name" placeholder="orbitPog (alphanumeric)" style="width:100%;" />
           </div>
           <div class="form-group">
-            <label style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:4px;display:block;">
+            <label style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:6px;display:block;">
               Emote Type
             </label>
-            <div style="display:flex;gap:12px;margin-top:8px;">
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#fff;cursor:pointer;">
-                <input type="radio" name="emote-type" value="unicode" checked id="type-unicode" /> Unicode Emoji
-              </label>
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#fff;cursor:pointer;">
-                <input type="radio" name="emote-type" value="image" id="type-image" /> Custom Image (1:1)
-              </label>
+            <div class="emote-type-toggle-group" style="display:inline-flex;width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:3px;gap:4px;">
+              <button type="button" id="toggle-type-unicode" class="emote-toggle-btn active" style="flex:1;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,rgba(0,174,189,0.3),rgba(0,221,238,0.2));color:#fff;box-shadow:0 0 10px rgba(0,174,189,0.3);transition:all 0.2s ease;">
+                <span>🔤</span> Unicode Emoji
+              </button>
+              <button type="button" id="toggle-type-image" class="emote-toggle-btn" style="flex:1;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;background:transparent;color:var(--color-text-muted);transition:all 0.2s ease;">
+                <span>🖼️</span> Custom Image
+              </button>
             </div>
+            <input type="radio" name="emote-type" value="unicode" checked id="type-unicode" style="display:none;" />
+            <input type="radio" name="emote-type" value="image" id="type-image" style="display:none;" />
           </div>
           <div class="form-group" id="emote-input-container">
             <label style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:4px;display:block;">
@@ -1471,7 +1500,41 @@ async function renderEmotes(ws) {
 
     const typeUnicode = document.getElementById('type-unicode');
     const typeImage = document.getElementById('type-image');
+    const btnUnicode = document.getElementById('toggle-type-unicode');
+    const btnImage = document.getElementById('toggle-type-image');
     const inputContainer = document.getElementById('emote-input-container');
+
+    function updateTogglePills() {
+      if (typeImage?.checked) {
+        btnImage?.style.setProperty('background', 'linear-gradient(135deg,rgba(0,174,189,0.3),rgba(0,221,238,0.2))');
+        btnImage?.style.setProperty('color', '#fff');
+        btnImage?.style.setProperty('box-shadow', '0 0 10px rgba(0,174,189,0.3)');
+        btnUnicode?.style.setProperty('background', 'transparent');
+        btnUnicode?.style.setProperty('color', 'var(--color-text-muted)');
+        btnUnicode?.style.setProperty('box-shadow', 'none');
+      } else {
+        btnUnicode?.style.setProperty('background', 'linear-gradient(135deg,rgba(0,174,189,0.3),rgba(0,221,238,0.2))');
+        btnUnicode?.style.setProperty('color', '#fff');
+        btnUnicode?.style.setProperty('box-shadow', '0 0 10px rgba(0,174,189,0.3)');
+        btnImage?.style.setProperty('background', 'transparent');
+        btnImage?.style.setProperty('color', 'var(--color-text-muted)');
+        btnImage?.style.setProperty('box-shadow', 'none');
+      }
+    }
+
+    btnUnicode?.addEventListener('click', () => {
+      if (typeUnicode) typeUnicode.checked = true;
+      if (typeImage) typeImage.checked = false;
+      updateTogglePills();
+      updateInputMode();
+    });
+
+    btnImage?.addEventListener('click', () => {
+      if (typeImage) typeImage.checked = true;
+      if (typeUnicode) typeUnicode.checked = false;
+      updateTogglePills();
+      updateInputMode();
+    });
 
     function updateInputMode() {
       if (typeImage.checked) {

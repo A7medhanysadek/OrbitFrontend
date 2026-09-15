@@ -14,6 +14,54 @@ let currentStreamId = null;
 let currentChannelId = null;
 let offlinePollTimer = null;
 let manifestRetryTimer = null;
+let hideControlsTimer = null;
+let playerControlsState = {
+  isYt: false,
+  isPlaying: true,
+  isMuted: false,
+  volume: 1
+};
+
+function sendYtCommand(func, args = []) {
+  const ytFrame = document.getElementById('youtube-player-frame');
+  if (ytFrame && ytFrame.contentWindow) {
+    ytFrame.contentWindow.postMessage(JSON.stringify({
+      event: 'command',
+      func: func,
+      args: args
+    }), '*');
+  }
+}
+
+function updatePlayerControlsUI() {
+  const playIcon = document.getElementById('orbit-play-icon');
+  const muteIcon = document.getElementById('orbit-volume-icon');
+  const volSlider = document.getElementById('orbit-ctrl-vol-slider');
+
+  if (playIcon) {
+    playIcon.textContent = playerControlsState.isPlaying ? '⏸' : '▶';
+  }
+  if (muteIcon) {
+    muteIcon.textContent = playerControlsState.isMuted || playerControlsState.volume === 0 ? '🔇' : (playerControlsState.volume < 0.5 ? '🔉' : '🔊');
+  }
+  if (volSlider) {
+    volSlider.value = playerControlsState.isMuted ? 0 : playerControlsState.volume;
+  }
+}
+
+function resetHideControlsTimer() {
+  const controls = document.getElementById('orbit-player-controls');
+  if (!controls) return;
+  controls.style.opacity = '1';
+  if (hideControlsTimer) clearTimeout(hideControlsTimer);
+  if (playerControlsState.isPlaying) {
+    hideControlsTimer = setTimeout(() => {
+      if (controls && playerControlsState.isPlaying) {
+        controls.style.opacity = '0';
+      }
+    }, 2500);
+  }
+}
 
 function escapeHtml(str) {
   if (!str) return '';
@@ -33,12 +81,45 @@ export function renderWatchRoomView() {
     <div style="display:flex;gap:0;margin:-24px;min-height:calc(100vh - var(--topbar-height));">
       <!-- Video + Info Column -->
       <div style="flex:1;display:flex;flex-direction:column;overflow-y:auto;min-width:0;">
-        <div class="player-wrapper" id="player-container" style="position:relative;border-radius:0;aspect-ratio:16/9;background:#000;">
+        <div class="player-wrapper" id="player-container" style="position:relative;border-radius:0;aspect-ratio:16/9;background:#000;overflow:hidden;">
           <video id="stream-video" style="width:100%;height:100%;background:#000;" autoplay playsinline></video>
-          <button id="player-unmute-btn" style="display:none;position:absolute;bottom:20px;left:20px;z-index:10;background:rgba(4,7,18,0.85);border:1px solid rgba(0,242,254,0.4);color:var(--color-cyan-neon,#00f2fe);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;align-items:center;gap:6px;backdrop-filter:blur(6px);">
+
+          <!-- Authentic Orbit Stream Controls Overlay (Kick & Twitch style) -->
+          <div id="orbit-player-controls" class="orbit-player-controls-overlay" style="position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:flex-end;z-index:10;opacity:0;transition:opacity 0.25s ease;">
+            <div style="pointer-events:auto;background:linear-gradient(180deg, transparent 0%, rgba(4,7,18,0.85) 40%, rgba(4,7,18,0.96) 100%);padding:24px 20px 14px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+              <!-- Left: Play/Pause, Live Badge, Volume -->
+              <div style="display:flex;align-items:center;gap:12px;">
+                <button id="orbit-ctrl-play" title="Play/Pause (Space)" class="orbit-ctrl-btn">
+                  <span id="orbit-play-icon" style="font-size:18px;">⏸</span>
+                </button>
+                
+                <div id="orbit-ctrl-live-badge" title="Live Broadcast" style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:4px;background:rgba(255,20,0,0.2);border:1px solid rgba(255,20,0,0.5);font-size:11px;font-weight:700;color:#ff3b30;letter-spacing:0.05em;cursor:default;">
+                  <span style="width:7px;height:7px;border-radius:50%;background:#ff3b30;display:inline-block;box-shadow:0 0 8px #ff3b30;animation:pulseLive 1.5s infinite;"></span>
+                  LIVE
+                </div>
+
+                <div class="orbit-volume-group" style="display:flex;align-items:center;gap:6px;margin-left:4px;">
+                  <button id="orbit-ctrl-mute" title="Mute/Unmute (M)" class="orbit-ctrl-btn">
+                    <span id="orbit-volume-icon" style="font-size:16px;">🔊</span>
+                  </button>
+                  <input type="range" id="orbit-ctrl-vol-slider" min="0" max="1" step="0.05" value="1" style="width:70px;height:4px;accent-color:var(--color-cyan-primary,#00aebd);cursor:pointer;" />
+                </div>
+              </div>
+
+              <!-- Right: Fullscreen -->
+              <div style="display:flex;align-items:center;gap:10px;">
+                <button id="orbit-ctrl-fullscreen" title="Fullscreen (F)" class="orbit-ctrl-btn">
+                  <span id="orbit-fullscreen-icon" style="font-size:16px;">⛶</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <button id="player-unmute-btn" style="display:none;position:absolute;bottom:70px;left:20px;z-index:11;background:rgba(4,7,18,0.9);border:1px solid rgba(0,242,254,0.5);color:var(--color-cyan-neon,#00f2fe);border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;align-items:center;gap:6px;backdrop-filter:blur(6px);box-shadow:0 0 16px rgba(0,242,254,0.3);">
             ${Icons.volume} Click to Unmute
           </button>
-          <div id="player-offline" class="hidden" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg-gradient-card);flex-direction:column;gap:12px;">
+          
+          <div id="player-offline" class="hidden" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg-gradient-card);flex-direction:column;gap:12px;z-index:5;">
             <div style="font-size:48px;">&#128752;</div>
             <h3 style="font-family:var(--font-display);color:var(--color-cyan-neon,#00f2fe);">Stream Offline</h3>
             <p style="color:var(--color-text-muted);font-size:13px;margin:0;">The broadcaster is not currently streaming.</p>
@@ -56,7 +137,6 @@ export function renderWatchRoomView() {
               </div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
-              <button id="watch-end-stream-btn" class="btn btn-danger btn-sm" style="display:none;">${Icons.x} End Stream</button>
               <button id="watch-clip-btn" class="btn btn-outline btn-sm">${Icons.clip} Clip</button>
               <button id="watch-follow-btn" class="btn btn-cyan btn-sm follow-btn not-following">${Icons.follow} Follow</button>
             </div>
@@ -144,7 +224,6 @@ export function setupWatchRoomEvents() {
     initPlayer(s);
     initChat(s.channelId, s.id);
     setupFollowBtn(s);
-    setupBroadcasterControls(s);
   };
 
   if (streamId) {
@@ -172,8 +251,112 @@ export function setupWatchRoomEvents() {
     const activeS = store.getState().activeStream;
     const sid = streamId || activeS?.id;
     if (!sid) return;
+    const user = getCurrentUser();
+    if (!user) {
+      store.showToast('Please log in to create a clip', 'info');
+      store.navigate('login');
+      return;
+    }
+    if (activeS?.isSimulated || (activeS?.hlsUrl && (activeS.hlsUrl.includes('youtube.com') || activeS.hlsUrl.includes('youtu.be')))) {
+      store.showToast('Live clipping is available for native broadcasts. YouTube simulated streams do not record on the media server.', 'warning');
+      return;
+    }
     store.openModal('slice', { streamId: sid, channelId: activeS?.channelId });
     showSliceModal(sid, activeS?.channelId);
+  });
+
+  // Authentic Orbit Player Controls wiring
+  const playBtn = document.getElementById('orbit-ctrl-play');
+  const muteBtn = document.getElementById('orbit-ctrl-mute');
+  const volSlider = document.getElementById('orbit-ctrl-vol-slider');
+  const fsBtn = document.getElementById('orbit-ctrl-fullscreen');
+  const playerContainer = document.getElementById('player-container');
+  const videoEl = document.getElementById('stream-video');
+
+  const togglePlay = () => {
+    if (playerControlsState.isPlaying) {
+      if (playerControlsState.isYt) {
+        sendYtCommand('pauseVideo');
+      } else if (videoEl) {
+        videoEl.pause();
+      }
+      playerControlsState.isPlaying = false;
+    } else {
+      if (playerControlsState.isYt) {
+        sendYtCommand('playVideo');
+      } else if (videoEl) {
+        videoEl.play().catch(() => {});
+      }
+      playerControlsState.isPlaying = true;
+    }
+    updatePlayerControlsUI();
+    resetHideControlsTimer();
+  };
+  playBtn?.addEventListener('click', togglePlay);
+
+  const toggleMute = () => {
+    if (playerControlsState.isMuted) {
+      playerControlsState.isMuted = false;
+      const targetVol = playerControlsState.volume || 1;
+      if (playerControlsState.isYt) {
+        sendYtCommand('unMute');
+        sendYtCommand('setVolume', [Math.round(targetVol * 100)]);
+      } else if (videoEl) {
+        videoEl.muted = false;
+        videoEl.volume = targetVol;
+      }
+    } else {
+      playerControlsState.isMuted = true;
+      if (playerControlsState.isYt) {
+        sendYtCommand('mute');
+      } else if (videoEl) {
+        videoEl.muted = true;
+      }
+    }
+    updatePlayerControlsUI();
+    resetHideControlsTimer();
+  };
+  muteBtn?.addEventListener('click', toggleMute);
+
+  volSlider?.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    playerControlsState.volume = val;
+    if (val === 0) {
+      playerControlsState.isMuted = true;
+      if (playerControlsState.isYt) {
+        sendYtCommand('mute');
+      } else if (videoEl) {
+        videoEl.muted = true;
+      }
+    } else {
+      playerControlsState.isMuted = false;
+      if (playerControlsState.isYt) {
+        sendYtCommand('unMute');
+        sendYtCommand('setVolume', [Math.round(val * 100)]);
+      } else if (videoEl) {
+        videoEl.muted = false;
+        videoEl.volume = val;
+      }
+    }
+    updatePlayerControlsUI();
+    resetHideControlsTimer();
+  });
+
+  fsBtn?.addEventListener('click', () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else if (playerContainer) {
+      playerContainer.requestFullscreen().catch(() => {});
+    }
+  });
+
+  playerContainer?.addEventListener('mousemove', resetHideControlsTimer);
+  playerContainer?.addEventListener('mouseenter', resetHideControlsTimer);
+  playerContainer?.addEventListener('mouseleave', () => {
+    const controls = document.getElementById('orbit-player-controls');
+    if (controls && playerControlsState.isPlaying) {
+      controls.style.opacity = '0';
+    }
   });
 
   // Channel visit
@@ -226,36 +409,7 @@ function setupFollowBtn(stream) {
   };
 }
 
-function setupBroadcasterControls(stream) {
-  const endBtn = document.getElementById('watch-end-stream-btn');
-  if (!endBtn) return;
 
-  const currentUser = getCurrentUser();
-  const isOwner = currentUser && stream && (
-    stream.streamerId === currentUser.id ||
-    stream.streamerName === currentUser.fullName ||
-    stream.channelId === currentUser.channelId
-  );
-
-  if (isOwner) {
-    endBtn.style.display = 'inline-flex';
-    endBtn.onclick = async () => {
-      if (!confirm('Are you sure you want to end your live stream?')) return;
-      try {
-        await streamApi.endStream();
-        store.showToast('Live stream ended.', 'info');
-        endBtn.style.display = 'none';
-        if (activeHls) {
-          activeHls.destroy();
-          activeHls = null;
-        }
-        document.getElementById('player-offline')?.classList.remove('hidden');
-      } catch (err) {
-        store.showToast(err.message || 'Failed to end stream', 'error');
-      }
-    };
-  }
-}
 
 function updateStreamUI(stream) {
   const titleEl = document.getElementById('watch-title');
@@ -348,8 +502,16 @@ async function initPlayer(stream) {
         ytFrame.allowFullscreen = true;
         document.getElementById('player-container')?.appendChild(ytFrame);
       }
-      ytFrame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
+      // Authentic Orbit embed: hide YouTube controls, annotations, related videos, keyboard shortcuts, branding
+      const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+      ytFrame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(currentOrigin)}`;
       ytFrame.style.display = 'block';
+
+      playerControlsState.isYt = true;
+      playerControlsState.isPlaying = true;
+      playerControlsState.isMuted = false;
+      updatePlayerControlsUI();
+      resetHideControlsTimer();
       return;
     }
   }
@@ -409,6 +571,11 @@ async function initPlayer(stream) {
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         offlineEl?.classList.add('hidden');
+        playerControlsState.isYt = false;
+        playerControlsState.isPlaying = true;
+        playerControlsState.isMuted = video.muted;
+        updatePlayerControlsUI();
+        resetHideControlsTimer();
         video.play().catch(e => {
           console.warn('[WatchRoom] Autoplay blocked, click video or unmute to play', e);
         });
@@ -744,9 +911,12 @@ function showSliceModal(streamId, channelId) {
     btn.disabled = true;
     btn.textContent = 'Generating...';
     try {
+      const sIdNum = parseInt(streamId);
+      const chIdNum = channelId ? parseInt(channelId) : undefined;
       await clipApi.slice({
-        streamId,
-        channelId,
+        streamId: sIdNum,
+        liveStreamId: sIdNum,
+        channelId: chIdNum,
         title: overlay.querySelector('#slice-title').value.trim() || 'Untitled Clip',
         durationSeconds: parseInt(overlay.querySelector('#slice-duration').value) || 60
       });

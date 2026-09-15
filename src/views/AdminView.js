@@ -264,9 +264,6 @@ async function renderUsersTab(container) {
                     <button class="btn btn-ghost btn-sm btn-edit-roles" data-uid="${u.id}" data-roles="${(u.roles||[]).join(',')}" data-uname="${escapeHtml(u.username || 'User')}" title="Manage Roles">
                       ${Icons.settings} Roles
                     </button>
-                    <button class="btn btn-ghost btn-sm btn-reset-pass" data-uid="${u.id}" data-uname="${escapeHtml(u.username)}" title="Reset Password">
-                      ${Icons.mail} Password
-                    </button>
                     <button class="btn btn-ghost btn-sm btn-del-account" data-uid="${u.id}" style="color:var(--color-error);" title="Delete Account">
                       ${Icons.trash}
                     </button>
@@ -325,10 +322,6 @@ async function renderUsersTab(container) {
     // Actions
     container.querySelectorAll('.btn-edit-roles').forEach(btn => {
       btn.addEventListener('click', () => openRolesModal(btn.dataset.uid, (btn.dataset.roles || '').split(',').filter(Boolean), btn.dataset.uname));
-    });
-
-    container.querySelectorAll('.btn-reset-pass').forEach(btn => {
-      btn.addEventListener('click', () => openResetPasswordModal(btn.dataset.uid, btn.dataset.uname));
     });
 
     container.querySelectorAll('.btn-del-account').forEach(btn => {
@@ -1168,55 +1161,6 @@ function openRolesModal(userId, currentRoles, username = '') {
       loadTabContent();
     } catch (err) {
       store.showToast(err.message || 'Failed to update roles', 'error');
-    }
-  });
-}
-
-function openResetPasswordModal(userId, username) {
-  const root = document.getElementById('admin-modal-root') || document.body;
-  const modal = document.createElement('div');
-  modal.className = 'modal-overlay';
-  modal.innerHTML = `
-    <div class="modal-content" style="max-width:420px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <h3 style="margin:0;font-size:18px;">Reset Password</h3>
-        <button id="close-reset-modal" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">&times;</button>
-      </div>
-      <p style="font-size:13px;color:var(--color-text-muted);margin-bottom:16px;">
-        Set a new secure password for <strong>${escapeHtml(username)}</strong>:
-      </p>
-      <div class="form-group" style="margin-bottom:20px;">
-        <label>New Password (min 6 characters)</label>
-        <div class="input-wrapper" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);">
-          <span class="input-icon">${Icons.lock}</span>
-          <input type="password" id="admin-new-password" placeholder="Enter new password" style="color:#fff;" required />
-        </div>
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:10px;">
-        <button id="cancel-reset-btn" class="btn btn-ghost btn-sm">Cancel</button>
-        <button id="submit-reset-btn" class="btn btn-cyan btn-sm">Set Password</button>
-      </div>
-    </div>
-  `;
-
-  root.appendChild(modal);
-
-  const close = () => modal.remove();
-  modal.querySelector('#close-reset-modal')?.addEventListener('click', close);
-  modal.querySelector('#cancel-reset-btn')?.addEventListener('click', close);
-
-  modal.querySelector('#submit-reset-btn')?.addEventListener('click', async () => {
-    const newPass = modal.querySelector('#admin-new-password')?.value;
-    if (!newPass || newPass.length < 6) {
-      store.showToast('Password must be at least 6 characters', 'error');
-      return;
-    }
-    try {
-      await adminApi.resetPassword(userId, newPass);
-      store.showToast('User password reset successfully', 'success');
-      close();
-    } catch (err) {
-      store.showToast(err.message || 'Failed to reset password', 'error');
     }
   });
 }

@@ -100,9 +100,7 @@ export function setupLoginEvents() {
     } finally { btn.disabled = false; btn.textContent = 'Login'; }
   });
 
-  // Google OAuth Initialization
-  const clientId = localStorage.getItem('orbit_google_client_id') || '42595995252-orbit.apps.googleusercontent.com';
-
+  // Google OAuth Initialization from Backend
   const handleGoogleCredential = async (response) => {
     if (!response?.credential) return;
     try {
@@ -116,39 +114,51 @@ export function setupLoginEvents() {
     }
   };
 
-  const initGoogleGIS = () => {
-    if (window.google?.accounts?.id && clientId) {
-      try {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleGoogleCredential,
-          auto_select: false,
-          cancel_on_tap_outside: true
-        });
-
-        const container = document.getElementById('google-login-container');
-        if (container) {
-          window.google.accounts.id.renderButton(container, {
-            theme: 'outline',
-            size: 'large',
-            type: 'standard',
-            shape: 'pill',
-            text: 'continue_with',
-            logo_alignment: 'left',
-            width: 280
-          });
-        }
-      } catch (e) {
-        console.warn('[Google GIS] Initialization notice:', e);
+  const setupGoogleAuth = async () => {
+    let clientId = '42595995252-orbit.apps.googleusercontent.com';
+    try {
+      const configRes = await authApi.getGoogleClientId();
+      if (configRes?.clientId) {
+        clientId = configRes.clientId;
       }
+    } catch (_) {}
+
+    const initGoogleGIS = () => {
+      if (window.google?.accounts?.id && clientId) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: handleGoogleCredential,
+            auto_select: false,
+            cancel_on_tap_outside: true
+          });
+
+          const container = document.getElementById('google-login-container');
+          if (container) {
+            window.google.accounts.id.renderButton(container, {
+              theme: 'outline',
+              size: 'large',
+              type: 'standard',
+              shape: 'pill',
+              text: 'continue_with',
+              logo_alignment: 'left',
+              width: 280
+            });
+          }
+        } catch (e) {
+          console.warn('[Google GIS] Initialization notice:', e);
+        }
+      }
+    };
+
+    if (window.google?.accounts?.id) {
+      initGoogleGIS();
+    } else {
+      setTimeout(initGoogleGIS, 600);
     }
   };
 
-  if (window.google?.accounts?.id) {
-    initGoogleGIS();
-  } else {
-    setTimeout(initGoogleGIS, 600);
-  }
+  setupGoogleAuth();
 
   document.getElementById('google-login-btn')?.addEventListener('click', () => {
     if (window.google?.accounts?.id) {

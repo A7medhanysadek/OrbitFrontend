@@ -103,5 +103,9 @@ export const authApi = {
       }
     }
     clearTokens();
+  },
+
+  async getGoogleClientId() {
+    return await apiClient('/api/Auth/google-client-id');
   }
 };
