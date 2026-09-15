@@ -56,10 +56,12 @@ export function renderLoginView() {
             </div>
 
             <div class="social-divider">or continue with</div>
-            <div class="social-buttons" style="justify-content:center;">
-              <button type="button" id="google-login-btn" class="social-btn" title="Sign in with Google" style="width:100%;height:44px;border-radius:24px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;font-weight:600;color:#333;background:#fff;border:1px solid #ddd;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.06);">
-                ${Icons.google} <span>Continue with Google</span>
-              </button>
+            <div class="social-buttons" style="justify-content:center;min-height:44px;">
+              <div id="google-login-container" style="display:flex;justify-content:center;width:100%;">
+                <button type="button" id="google-login-btn" class="social-btn" title="Sign in with Google" style="width:100%;height:44px;border-radius:24px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;font-weight:600;color:#333;background:#fff;border:1px solid #ddd;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.06);">
+                  ${Icons.google} <span>Continue with Google</span>
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -98,20 +100,61 @@ export function setupLoginEvents() {
     } finally { btn.disabled = false; btn.textContent = 'Login'; }
   });
 
-  document.getElementById('google-login-btn')?.addEventListener('click', async () => {
-    // Prompt or trigger Google OAuth Sign-In
-    const clientId = localStorage.getItem('orbit_google_client_id');
-    const credential = prompt('Enter Google ID Token or Credential (or test token):', '');
-    if (!credential) return;
+  // Google OAuth Initialization
+  const clientId = localStorage.getItem('orbit_google_client_id') || '42595995252-orbit.apps.googleusercontent.com';
 
+  const handleGoogleCredential = async (response) => {
+    if (!response?.credential) return;
     try {
       store.showToast('Authenticating with Google...', 'info');
-      const res = await authApi.googleLogin(credential);
+      const res = await authApi.googleLogin(response.credential);
       store.setCurrentUser(res);
       store.showToast('Welcome to Orbit!', 'success');
       store.navigate('home');
     } catch (err) {
       store.showToast(err.message || 'Google authentication failed', 'error');
+    }
+  };
+
+  const initGoogleGIS = () => {
+    if (window.google?.accounts?.id && clientId) {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleCredential,
+          auto_select: false,
+          cancel_on_tap_outside: true
+        });
+
+        const container = document.getElementById('google-login-container');
+        if (container) {
+          window.google.accounts.id.renderButton(container, {
+            theme: 'outline',
+            size: 'large',
+            type: 'standard',
+            shape: 'pill',
+            text: 'continue_with',
+            logo_alignment: 'left',
+            width: 280
+          });
+        }
+      } catch (e) {
+        console.warn('[Google GIS] Initialization notice:', e);
+      }
+    }
+  };
+
+  if (window.google?.accounts?.id) {
+    initGoogleGIS();
+  } else {
+    setTimeout(initGoogleGIS, 600);
+  }
+
+  document.getElementById('google-login-btn')?.addEventListener('click', () => {
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.prompt();
+    } else {
+      store.showToast('Google services loading, please wait...', 'info');
     }
   });
 }

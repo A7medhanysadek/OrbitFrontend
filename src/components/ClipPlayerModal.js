@@ -127,9 +127,6 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
             <button id="clip-copy-url-btn" class="btn btn-outline btn-sm">
               ${Icons.share} Copy Media URL
             </button>
-            <a id="clip-download-btn" href="${resolvedUrl || '#'}" download class="btn btn-outline btn-sm">
-              ${Icons.download} Download File
-            </a>
             <button id="clip-retry-btn" class="btn btn-ghost btn-sm">
               ${Icons.refresh} Refresh & Retry
             </button>
@@ -179,9 +176,6 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
               ${Icons.rocket} Visit Channel
             </button>
           ` : ''}
-          <a id="clip-download-footer-btn" href="${resolvedUrl || '#'}" download class="btn btn-outline btn-sm">
-            ${Icons.download} Download
-          </a>
           <button id="clip-share-btn" class="btn btn-ghost btn-sm">
             ${Icons.share} Share
           </button>
@@ -276,11 +270,7 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
     await fetchMediaConfig(true).catch(() => { });
     resolvedUrl = resolveMediaUrl(rawUrl);
     const directLink = modal.querySelector('#clip-direct-link');
-    const downloadBtn = modal.querySelector('#clip-download-btn');
-    const footerDownload = modal.querySelector('#clip-download-footer-btn');
     if (directLink) directLink.href = resolvedUrl || '#';
-    if (downloadBtn) downloadBtn.href = resolvedUrl || '#';
-    if (footerDownload) footerDownload.href = resolvedUrl || '#';
     initPlayback();
   });
 
@@ -316,7 +306,7 @@ export async function openClipPlayerModal(clip, onClipDeleted = null) {
               <div style="display: flex; flex-direction: column; gap: 8px; color: #ccc; font-size: 12px;">
                 <div>&#128640; <strong>Recommended for Local Testing:</strong> Run the frontend locally (<code style="color:var(--color-cyan-neon,#00f2fe);">npm run dev</code> at <code style="color:var(--color-cyan-neon,#00f2fe);">http://localhost:5173</code>). It connects to your live MonsterASP backend with zero mixed-content restrictions!</div>
                 <div>&#127760; <strong>For Online Playback:</strong> Set an HTTPS tunnel (e.g. ngrok HTTPS URL) in <strong>Admin &rarr; Media Server</strong> settings.</div>
-                <div>&#127911; <strong>External Player:</strong> You can open or stream this clip directly in VLC player or download it below.</div>
+                <div>&#127911; <strong>External Player:</strong> You can open or stream this clip directly in VLC or media player.</div>
               </div>
             </div>
           `;

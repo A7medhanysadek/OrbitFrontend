@@ -54,6 +54,15 @@ export const adminApi = {
   forceEndStream: (streamId) =>
     apiClient(`/api/Admin/streams/${streamId}/force-end`, { method: 'POST' }),
 
+  simulateYoutubeStream: (payload) =>
+    apiClient('/api/Admin/simulate-youtube-stream', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  endSimulatedStream: (streamId) =>
+    apiClient(`/api/Admin/streams/${streamId}/end-simulated`, { method: 'POST' }),
+
   // Content Moderation (Clips & VODs)
   getClips: (page = 1, size = 20) =>
     apiClient(`/api/Admin/clips?page=${page}&pageSize=${size}`),

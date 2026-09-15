@@ -13,6 +13,7 @@ let channelData = null;
 let hasChannel = false;
 let authError = false;
 let cachedCategories = [];
+let studioLiveDurationTimer = null;
 
 function escapeHtml(str) {
   if (!str) return '';
@@ -542,7 +543,7 @@ async function loadLiveManager() {
           </div>
           <div class="stat-card">
             <div class="stat-label">Duration</div>
-            <div class="stat-value">${isLive ? (live.formattedUptime || live.duration || '0:00') : '00:00'}</div>
+            <div class="stat-value" id="live-stream-duration">${isLive ? (live.formattedUptime || live.duration || '0:00') : '00:00'}</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Status</div>
@@ -569,31 +570,56 @@ async function loadLiveManager() {
             <div class="form-group">
               <label style="font-size:11px;font-weight:600;color:var(--color-text-muted);">Category</label>
               <select class="input-dark" id="live-meta-category" style="margin-top:4px;">
-                <option value="">None / General</option>
-                ${cachedCategories.map(c => `<option value="${c.id}" ${live.categoryId === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+                <option value="">Select Category (Optional)</option>
+                ${(cachedCategories || []).map(c => `
+                  <option value="${c.id}" ${c.id === live.categoryId ? 'selected' : ''}>${escapeHtml(c.name)}</option>
+                `).join('')}
               </select>
             </div>
             <div class="form-group">
-              <label style="font-size:11px;font-weight:600;color:var(--color-text-muted);">Description</label>
-              <input class="input-dark" id="live-meta-desc" value="${escapeHtml(live.description || '')}" placeholder="Stream description..." style="margin-top:4px;" />
-            </div>
-            <div style="grid-column:span 2;display:flex;justify-content:flex-end;">
-              <button type="submit" id="live-save-meta-btn" class="btn btn-cyan btn-sm" style="padding:8px 20px;">
-                Save Stream Info
+              <label style="font-size:11px;font-weight:600;color:var(--color-text-muted);">Actions</label>
+              <button type="submit" id="live-meta-save-btn" class="btn btn-cyan btn-sm" style="margin-top:4px;width:100%;height:40px;">
+                Update Stream Info
               </button>
+            </div>
+            <div class="form-group" style="grid-column:span 2;">
+              <label style="font-size:11px;font-weight:600;color:var(--color-text-muted);">Description</label>
+              <textarea class="input-dark" id="live-meta-desc" rows="2" style="margin-top:4px;height:auto;padding:8px 12px;border-radius:10px;">${escapeHtml(live.description || '')}</textarea>
             </div>
           </form>
         </div>
       </div>
     `;
 
+    // Real-time ticking stream duration interval
+    if (studioLiveDurationTimer) {
+      clearInterval(studioLiveDurationTimer);
+      studioLiveDurationTimer = null;
+    }
+    if (isLive && (live.startedAt || live.createdAt)) {
+      const startMs = new Date(live.startedAt || live.createdAt).getTime();
+      const updateDuration = () => {
+        const durationEl = document.getElementById('live-stream-duration');
+        if (!durationEl) return;
+        const elapsedSec = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+        const h = Math.floor(elapsedSec / 3600);
+        const m = Math.floor((elapsedSec % 3600) / 60);
+        const s = elapsedSec % 60;
+        durationEl.textContent = h > 0
+          ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+          : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      };
+      updateDuration();
+      studioLiveDurationTimer = setInterval(updateDuration, 1000);
+    }
+
     document.getElementById('studio-view-live-btn')?.addEventListener('click', () => {
-      if (live.streamId) store.navigate('watch', { streamId: live.streamId });
+      store.navigate('watch', { streamId: live.id });
     });
 
     document.getElementById('live-edit-meta-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const saveBtn = document.getElementById('live-save-meta-btn');
+      const saveBtn = document.getElementById('live-meta-save-btn');
       saveBtn.disabled = true;
       try {
         const title = document.getElementById('live-meta-title')?.value.trim();
@@ -615,6 +641,11 @@ async function loadLiveManager() {
         ? 'Are you sure you want to end your active live broadcast?'
         : 'Are you sure you want to cancel this pending stream session?';
       if (!confirm(confirmMsg)) return;
+
+      if (studioLiveDurationTimer) {
+        clearInterval(studioLiveDurationTimer);
+        studioLiveDurationTimer = null;
+      }
 
       const btn = document.getElementById('end-stream-btn');
       if (btn) btn.disabled = true;
@@ -1031,6 +1062,18 @@ async function renderAnalytics(ws) {
       ? pastStreamsRes.value
       : [];
 
+    // Calculate real data metrics from broadcast history
+    const totalPastBroadcastSeconds = pastStreams.reduce((acc, s) => acc + (s.durationSeconds || 0), 0);
+    const effectiveBroadcastHours = stats.totalBroadcastHours && stats.totalBroadcastHours !== '0.0 hrs' && stats.totalBroadcastHours !== '0h'
+      ? stats.totalBroadcastHours
+      : (totalPastBroadcastSeconds > 0 ? `${(totalPastBroadcastSeconds / 3600).toFixed(1)} hrs` : '0.0 hrs');
+
+    const pastPeaks = pastStreams.map(s => s.peakViewers || 0);
+    const effectiveAllTimePeak = Math.max(stats.allTimePeakViewers || 0, ...pastPeaks, 0);
+    const effectiveAvgPeak = pastPeaks.length > 0
+      ? (pastPeaks.reduce((a, b) => a + b, 0) / pastPeaks.length).toFixed(1)
+      : (stats.averagePeakViewers ? stats.averagePeakViewers.toFixed(1) : '0');
+
     ws.innerHTML = `
       <div style="margin-bottom:24px;">
         <h2 style="font-family:var(--font-display);color:var(--color-cyan-neon);margin:0 0 4px 0;">${Icons.chart || '📊'} Analytics &amp; Insights</h2>
@@ -1041,22 +1084,22 @@ async function renderAnalytics(ws) {
       <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:28px;">
         <div class="stat-card animate-fade-up">
           <div class="stat-label">All-Time Peak Viewers</div>
-          <div class="stat-value" style="color:var(--color-live-red);">${stats.allTimePeakViewers || 0}</div>
+          <div class="stat-value" style="color:var(--color-live-red);">${effectiveAllTimePeak}</div>
           <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">Highest concurrent viewers</div>
         </div>
         <div class="stat-card animate-fade-up" style="animation-delay:0.05s;">
           <div class="stat-label">Average Peak Viewers</div>
-          <div class="stat-value" style="color:var(--color-cyan-primary);">${stats.averagePeakViewers ? stats.averagePeakViewers.toFixed(1) : 0}</div>
+          <div class="stat-value" style="color:var(--color-cyan-primary);">${effectiveAvgPeak}</div>
           <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">Average peak across all streams</div>
         </div>
         <div class="stat-card animate-fade-up" style="animation-delay:0.1s;">
           <div class="stat-label">Total Broadcast Time</div>
-          <div class="stat-value" style="color:#fff;">${stats.totalBroadcastHours || '0h'}</div>
+          <div class="stat-value" style="color:#fff;">${effectiveBroadcastHours}</div>
           <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">Avg duration: ${stats.averageStreamDurationFormatted || '0m'}</div>
         </div>
         <div class="stat-card animate-fade-up" style="animation-delay:0.15s;">
           <div class="stat-label">Total Stream Sessions</div>
-          <div class="stat-value" style="color:#fff;">${stats.totalStreams || 0}</div>
+          <div class="stat-value" style="color:#fff;">${Math.max(stats.totalStreams || 0, pastStreams.length)}</div>
           <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">Completed broadcast sessions</div>
         </div>
         <div class="stat-card animate-fade-up" style="animation-delay:0.2s;">
@@ -1075,11 +1118,11 @@ async function renderAnalytics(ws) {
       <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:20px;margin-bottom:28px;">
         <div class="chart-container">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h4 style="margin:0;font-size:14px;color:#fff;">Viewer Activity (Last 12 Streams)</h4>
-            <span style="font-size:11px;color:var(--color-cyan-primary);">Peak: ${stats.allTimePeakViewers || 0} viewers</span>
+            <h4 style="margin:0;font-size:14px;color:#fff;">Viewer Activity (Recent Streams)</h4>
+            <span style="font-size:11px;color:var(--color-cyan-primary);">Peak: ${effectiveAllTimePeak} viewers</span>
           </div>
-          <div class="mini-chart" style="height:140px;gap:8px;padding:20px 0;">
-            ${generateChartBars(12, stats.allTimePeakViewers || 100)}
+          <div class="mini-chart" style="height:140px;gap:8px;padding:20px 0;align-items:flex-end;">
+            ${generateStreamDataBars(pastStreams, 'peakViewers', 12)}
           </div>
         </div>
         <div class="chart-container">
@@ -1087,8 +1130,8 @@ async function renderAnalytics(ws) {
             <h4 style="margin:0;font-size:14px;color:#fff;">Chat Engagement Activity</h4>
             <span style="font-size:11px;color:var(--color-cyan-primary);">${stats.totalChatMessages || 0} total messages</span>
           </div>
-          <div class="mini-chart" style="height:140px;gap:8px;padding:20px 0;">
-            ${generateChartBars(12, stats.totalChatMessages || 50)}
+          <div class="mini-chart" style="height:140px;gap:8px;padding:20px 0;align-items:flex-end;">
+            ${generateStreamDataBars(pastStreams, 'chatMessageCount', 12)}
           </div>
         </div>
       </div>
@@ -1616,9 +1659,39 @@ function switchTab(tab) {
   renderWorkspace();
 }
 
-function generateChartBars(count, maxVal) {
-  return Array.from({length: count}, () => {
-    const h = Math.max(12, Math.floor(Math.random() * 88) + 12);
-    return `<div class="mini-chart-bar" style="height:${h}%;flex:1;opacity:${0.5 + Math.random()*0.5};animation-delay:${Math.random()*0.5}s;"></div>`;
+function generateStreamDataBars(streams, field = 'peakViewers', fallbackCount = 8) {
+  if (Array.isArray(streams) && streams.length > 0) {
+    const list = [...streams].slice(0, 12).reverse();
+    const values = list.map(s => s[field] || 0);
+    const max = Math.max(...values, 1);
+    return list.map((s) => {
+      const val = s[field] || 0;
+      const pct = Math.max(14, Math.round((val / max) * 100));
+      const label = field === 'peakViewers' ? `${val} peak viewers` : `${val} chat msgs`;
+      const titleStr = `${escapeHtml(s.title || 'Stream')}: ${label}`;
+      const isPeak = field === 'peakViewers';
+      const barColor = isPeak
+        ? 'linear-gradient(180deg, var(--color-live-red, #ff1400), rgba(255, 20, 0, 0.4))'
+        : 'linear-gradient(180deg, var(--color-cyan-neon, #00f2fe), var(--color-cyan-primary, #00aebd))';
+      return `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end;gap:4px;" title="${titleStr}">
+          <div class="mini-chart-bar" style="height:${pct}%;width:100%;background:${barColor};border-radius:4px 4px 0 0;opacity:0.95;transition:all 0.3s ease;cursor:pointer;"></div>
+          <span style="font-size:9px;color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:36px;text-align:center;">${val}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  return Array.from({ length: fallbackCount }, () => {
+    return `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end;gap:4px;">
+        <div class="mini-chart-bar" style="height:15%;width:100%;background:rgba(255,255,255,0.06);border-radius:4px 4px 0 0;"></div>
+        <span style="font-size:9px;color:var(--color-text-muted);">-</span>
+      </div>
+    `;
   }).join('');
+}
+
+function generateChartBars(count, maxVal) {
+  return generateStreamDataBars([], 'peakViewers', count || 8);
 }

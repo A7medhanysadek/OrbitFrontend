@@ -30,7 +30,7 @@ img { max-width: 100%; display: block; }
 .auth-form-panel .auth-subtitle { font-size: 14px; color: var(--color-cyan-primary); margin-bottom: 28px; }
 .auth-logo-group { display: flex; align-items: center; gap: 0; margin-bottom: 16px; }
 .auth-logo-group img { height: 76px; filter: drop-shadow(0 4px 20px rgba(0,174,189,0.4)); margin-right: -8px; }
-.auth-logo-group .logo-text { font-family: var(--font-display); font-size: 54px; color: var(--color-cyan-neon); letter-spacing: -0.02em; margin-left: -4px; line-height: 1; }
+.auth-logo-group .logo-text { font-family: var(--font-display); font-size: 70px; color: var(--color-cyan-neon); letter-spacing: -0.02em; margin-left: -2px; line-height: 1; display: inline-flex; align-items: center; }
 .auth-tagline { font-family: var(--font-display); font-size: 20px; color: var(--color-text-white); margin-top: 12px; }
 
 /* === FORM ELEMENTS === */
@@ -47,10 +47,35 @@ img { max-width: 100%; display: block; }
 .input-wrapper .input-toggle { color: var(--color-text-subtle); cursor: pointer; display: flex; align-items: center; margin-left: 8px; }
 .input-wrapper .input-toggle svg { width: 20px; height: 20px; }
 
-/* Dark theme inputs */
+/* Dark theme inputs & selects */
 .input-dark { background: rgba(255,255,255,0.06); border-radius: var(--radius-pill); height: 44px; padding: 0 16px; color: #fff; font-size: 13px; width: 100%; border: 1px solid rgba(255,255,255,0.1); transition: all var(--transition-fast); }
 .input-dark:focus { border-color: var(--color-cyan-primary); background: rgba(255,255,255,0.1); box-shadow: 0 0 0 3px rgba(0,174,189,0.15); }
 .input-dark::placeholder { color: var(--color-text-muted); }
+
+/* Select & Dropdown lists - Dark Theme Palette */
+select, select.input-dark {
+  background-color: var(--color-space-panel, #121519) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: var(--radius-pill, 25px);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2300f2fe' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 14px;
+  padding-right: 38px !important;
+  cursor: pointer;
+}
+select option, select.input-dark option {
+  background-color: #121519 !important;
+  color: #ffffff !important;
+  padding: 10px 14px;
+}
+select option:hover, select option:checked, select option:focus {
+  background-color: #191E23 !important;
+  color: var(--color-cyan-neon, #00f2fe) !important;
+}
 
 /* === BUTTONS === */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--font-ui); font-weight: 600; font-size: 16px; border-radius: var(--radius-btn); cursor: pointer; transition: all var(--transition-normal); border: none; padding: 0 32px; height: 44px; white-space: nowrap; }

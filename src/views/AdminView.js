@@ -264,9 +264,6 @@ async function renderUsersTab(container) {
                     <button class="btn btn-ghost btn-sm btn-edit-roles" data-uid="${u.id}" data-roles="${(u.roles||[]).join(',')}" data-uname="${escapeHtml(u.username || 'User')}" title="Manage Roles">
                       ${Icons.settings} Roles
                     </button>
-                    <button class="btn btn-ghost btn-sm btn-toggle-lock" data-uid="${u.id}" data-locked="${u.isLockedOut}" style="color:${u.isLockedOut?'var(--color-success)':'var(--color-warning)'};" title="${u.isLockedOut?'Unlock':'Lock'}">
-                      ${u.isLockedOut ? Icons.checkCircle : Icons.lock} ${u.isLockedOut ? 'Unlock' : 'Lock'}
-                    </button>
                     <button class="btn btn-ghost btn-sm btn-reset-pass" data-uid="${u.id}" data-uname="${escapeHtml(u.username)}" title="Reset Password">
                       ${Icons.mail} Password
                     </button>
@@ -328,22 +325,6 @@ async function renderUsersTab(container) {
     // Actions
     container.querySelectorAll('.btn-edit-roles').forEach(btn => {
       btn.addEventListener('click', () => openRolesModal(btn.dataset.uid, (btn.dataset.roles || '').split(',').filter(Boolean), btn.dataset.uname));
-    });
-
-    container.querySelectorAll('.btn-toggle-lock').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const uid = btn.dataset.uid;
-        const currentlyLocked = btn.dataset.locked === 'true';
-        const actionText = currentlyLocked ? 'unlock' : 'lock / ban';
-        if (!confirm(`Are you sure you want to ${actionText} this user account?`)) return;
-        try {
-          await adminApi.lockUser(uid, !currentlyLocked, 1440);
-          store.showToast(`User account ${currentlyLocked ? 'unlocked' : 'locked'} successfully`, 'success');
-          loadTabContent();
-        } catch (err) {
-          store.showToast(err.message || 'Operation failed', 'error');
-        }
-      });
     });
 
     container.querySelectorAll('.btn-reset-pass').forEach(btn => {
@@ -504,9 +485,66 @@ async function renderChannelsTab(container) {
 // ──────────────────────────────────────────
 async function renderStreamsTab(container) {
   try {
-    const streams = await adminApi.getLiveStreams();
+    const [streamsRes, channelsRes, categoriesRes] = await Promise.allSettled([
+      adminApi.getLiveStreams(),
+      adminApi.getChannels(1, 100),
+      categoryApi.getAll()
+    ]);
+
+    const streams = streamsRes.status === 'fulfilled' ? streamsRes.value : [];
+    const channels = (channelsRes.status === 'fulfilled' && channelsRes.value?.items) ? channelsRes.value.items : [];
+    const categories = (categoriesRes.status === 'fulfilled' && Array.isArray(categoriesRes.value)) ? categoriesRes.value : [];
 
     container.innerHTML = `
+      <!-- YouTube Simulation Relay Ingest Card -->
+      <div class="card" style="margin-bottom:24px;background:rgba(255,0,60,0.03);border:1px solid rgba(255,0,60,0.22);border-radius:var(--radius-lg);padding:24px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+          <div style="width:38px;height:38px;border-radius:8px;background:rgba(255,0,60,0.15);color:#ff3344;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;">
+            ▶
+          </div>
+          <div>
+            <h3 style="font-size:16px;color:#fff;margin:0;font-weight:700;">Simulate Live Stream (YouTube Relay Ingest)</h3>
+            <p style="color:var(--color-text-muted);font-size:13px;margin:2px 0 0;">
+              Paste any YouTube Live URL to simulate an active live broadcast on a chosen channel for testing player, chat, and room dynamics without saving VODs.
+            </p>
+          </div>
+        </div>
+
+        <form id="admin-simulate-youtube-form" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:14px;align-items:end;margin-top:16px;">
+          <div>
+            <label style="display:block;font-size:12px;color:var(--color-text-muted);margin-bottom:6px;font-weight:600;">Target Channel</label>
+            <select id="sim-channel-id" class="input-dark" style="width:100%;height:40px;border-radius:var(--radius-md);padding:0 12px;" required>
+              <option value="">Select Channel...</option>
+              ${channels.map(c => `<option value="${c.id}">${escapeHtml(c.channelName)} (@${escapeHtml(c.ownerUsername)})</option>`).join('')}
+            </select>
+          </div>
+
+          <div style="grid-column: span 2;">
+            <label style="display:block;font-size:12px;color:var(--color-text-muted);margin-bottom:6px;font-weight:600;">YouTube Live / Video URL</label>
+            <input type="url" id="sim-youtube-url" class="input-dark" placeholder="https://www.youtube.com/watch?v=... or https://youtube.com/live/..." style="width:100%;height:40px;border-radius:var(--radius-md);padding:0 12px;" required />
+          </div>
+
+          <div>
+            <label style="display:block;font-size:12px;color:var(--color-text-muted);margin-bottom:6px;font-weight:600;">Stream Title (Optional)</label>
+            <input type="text" id="sim-stream-title" class="input-dark" placeholder="e.g. 24/7 Lo-Fi Beats Test" style="width:100%;height:40px;border-radius:var(--radius-md);padding:0 12px;" />
+          </div>
+
+          <div>
+            <label style="display:block;font-size:12px;color:var(--color-text-muted);margin-bottom:6px;font-weight:600;">Category</label>
+            <select id="sim-category-id" class="input-dark" style="width:100%;height:40px;border-radius:var(--radius-md);padding:0 12px;">
+              <option value="">Select Category (Optional)</option>
+              ${categories.map(cat => `<option value="${cat.id}">${escapeHtml(cat.name)}</option>`).join('')}
+            </select>
+          </div>
+
+          <div>
+            <button type="submit" id="sim-submit-btn" class="btn btn-sm" style="background:#ff3344;color:#fff;font-weight:600;width:100%;height:40px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;gap:8px;">
+              Launch Simulated Stream
+            </button>
+          </div>
+        </form>
+      </div>
+
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
         <h3 style="font-size:16px;color:#fff;margin:0;">Active Live Broadcasts (${streams.length})</h3>
         <button id="refresh-live-streams-btn" class="btn btn-ghost btn-sm">${Icons.refresh} Refresh</button>
@@ -518,6 +556,7 @@ async function renderStreamsTab(container) {
             <tr>
               <th>Broadcast</th>
               <th>Streamer / Channel</th>
+              <th>Type</th>
               <th>Category</th>
               <th>Viewers</th>
               <th>Started</th>
@@ -536,6 +575,17 @@ async function renderStreamsTab(container) {
                   <div style="font-size:12px;color:var(--color-cyan-primary);">${escapeHtml(s.channelName || '')}</div>
                 </td>
                 <td>
+                  ${s.isSimulated ? `
+                    <span class="badge" style="background:rgba(255,0,50,0.15);color:#ff4455;border:1px solid rgba(255,0,50,0.3);font-size:11px;padding:2px 8px;border-radius:12px;display:inline-flex;align-items:center;gap:4px;">
+                      ▶ YouTube
+                    </span>
+                  ` : `
+                    <span class="badge" style="background:rgba(0,255,200,0.1);color:var(--color-cyan-primary);font-size:11px;padding:2px 8px;border-radius:12px;">
+                      RTMP / HLS
+                    </span>
+                  `}
+                </td>
+                <td>
                   ${s.categoryName ? `<span class="badge-category">${escapeHtml(s.categoryName)}</span>` : '<span class="text-muted">-</span>'}
                 </td>
                 <td>
@@ -549,14 +599,20 @@ async function renderStreamsTab(container) {
                     <button class="btn btn-ghost btn-sm btn-watch-stream" data-sid="${s.streamId}">
                       ${Icons.eye} Watch
                     </button>
-                    <button class="btn btn-danger btn-sm btn-force-end" data-sid="${s.streamId}" style="padding:0 14px;height:32px;font-size:12px;">
-                      Force Terminate
-                    </button>
+                    ${s.isSimulated ? `
+                      <button class="btn btn-danger btn-sm btn-end-sim" data-sid="${s.streamId}" style="padding:0 14px;height:32px;font-size:12px;background:rgba(255,0,50,0.18);border:1px solid #ff3344;color:#ff4455;">
+                        End Simulation
+                      </button>
+                    ` : `
+                      <button class="btn btn-danger btn-sm btn-force-end" data-sid="${s.streamId}" style="padding:0 14px;height:32px;font-size:12px;">
+                        Force Terminate
+                      </button>
+                    `}
                   </div>
                 </td>
               </tr>
             `).join('')}
-            ${!streams.length ? '<tr><td colspan="6" style="text-align:center;padding:48px;color:var(--color-text-muted);">No streams are currently broadcasting live across the platform.</td></tr>' : ''}
+            ${!streams.length ? '<tr><td colspan="7" style="text-align:center;padding:48px;color:var(--color-text-muted);">No streams are currently broadcasting live across the platform.</td></tr>' : ''}
           </tbody>
         </table>
       </div>
@@ -564,9 +620,62 @@ async function renderStreamsTab(container) {
 
     document.getElementById('refresh-live-streams-btn')?.addEventListener('click', () => loadTabContent());
 
+    const simForm = document.getElementById('admin-simulate-youtube-form');
+    if (simForm) {
+      simForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const chIdVal = document.getElementById('sim-channel-id')?.value;
+        const ytUrl = document.getElementById('sim-youtube-url')?.value?.trim();
+        const title = document.getElementById('sim-stream-title')?.value?.trim();
+        const catVal = document.getElementById('sim-category-id')?.value;
+
+        if (!chIdVal || !ytUrl) {
+          store.showToast('Please select a channel and enter a YouTube URL', 'error');
+          return;
+        }
+
+        const submitBtn = document.getElementById('sim-submit-btn');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = 'Starting...';
+        }
+
+        try {
+          await adminApi.simulateYoutubeStream({
+            channelId: parseInt(chIdVal),
+            youtubeUrl: ytUrl,
+            title: title || null,
+            categoryId: catVal ? parseInt(catVal) : null
+          });
+          store.showToast('YouTube live simulation started successfully!', 'success');
+          loadTabContent();
+        } catch (err) {
+          store.showToast(err.message || 'Failed to start YouTube simulation', 'error');
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Launch Simulated Stream';
+          }
+        }
+      });
+    }
+
     container.querySelectorAll('.btn-watch-stream').forEach(btn => {
       btn.addEventListener('click', () => {
         store.navigate('watch', { streamId: parseInt(btn.dataset.sid) });
+      });
+    });
+
+    container.querySelectorAll('.btn-end-sim').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const sid = parseInt(btn.dataset.sid);
+        if (!confirm(`End YouTube simulation for stream #${sid}?`)) return;
+        try {
+          await adminApi.endSimulatedStream(sid);
+          store.showToast('Simulated stream ended successfully', 'success');
+          loadTabContent();
+        } catch (err) {
+          store.showToast(err.message || 'Failed to end simulation', 'error');
+        }
       });
     });
 

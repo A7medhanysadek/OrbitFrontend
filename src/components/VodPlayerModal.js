@@ -95,9 +95,6 @@ export async function openVodPlayerModal(vod) {
                 <button id="vod-copy-url-btn" class="btn btn-outline btn-sm">
                   ${Icons.share} Copy Stream URL
                 </button>
-                <a id="vod-error-download-btn" href="#" download class="btn btn-outline btn-sm">
-                  ${Icons.download} Download
-                </a>
                 <button id="vod-retry-btn" class="btn btn-ghost btn-sm">
                   ${Icons.refresh} Retry
                 </button>
@@ -119,9 +116,6 @@ export async function openVodPlayerModal(vod) {
               <button id="vod-copy-url-footer" class="btn btn-ghost btn-sm">
                 ${Icons.share} Share URL
               </button>
-              <a id="vod-download-btn" href="#" target="_blank" class="btn btn-outline btn-sm" download>
-                ${Icons.download} Download
-              </a>
             </div>
           </div>
         </div>
@@ -195,11 +189,7 @@ export async function openVodPlayerModal(vod) {
   let resolvedUrl = resolveMediaUrl(rawUrl);
 
   const directLink = modal.querySelector('#vod-direct-link');
-  const downloadBtn = modal.querySelector('#vod-download-btn');
-  const errDownloadBtn = modal.querySelector('#vod-error-download-btn');
   if (directLink && resolvedUrl) directLink.href = resolvedUrl;
-  if (downloadBtn && resolvedUrl) downloadBtn.href = resolvedUrl;
-  if (errDownloadBtn && resolvedUrl) errDownloadBtn.href = resolvedUrl;
 
   const video = modal.querySelector('#vod-video');
   const spinner = modal.querySelector('#vod-loading-spinner');
@@ -230,8 +220,6 @@ export async function openVodPlayerModal(vod) {
     await fetchMediaConfig(true).catch(() => {});
     resolvedUrl = resolveMediaUrl(rawUrl);
     if (directLink) directLink.href = resolvedUrl || '#';
-    if (downloadBtn) downloadBtn.href = resolvedUrl || '#';
-    if (errDownloadBtn) errDownloadBtn.href = resolvedUrl || '#';
     initPlayback();
   });
 
@@ -275,7 +263,7 @@ export async function openVodPlayerModal(vod) {
               <div style="display: flex; flex-direction: column; gap: 8px; color: #ccc; font-size: 12px;">
                 <div>&#128640; <strong>Recommended for Local Testing:</strong> Run Orbit locally (<code style="color:var(--color-cyan-neon,#00f2fe);">npm run dev</code> at <code style="color:var(--color-cyan-neon,#00f2fe);">http://localhost:5173</code>). It connects directly to your live MonsterASP backend with no mixed-content restrictions!</div>
                 <div>&#127760; <strong>For Online Playback:</strong> Configure an HTTPS tunnel (e.g. ngrok HTTPS URL) in <strong>Admin &rarr; Media Server</strong> settings.</div>
-                <div>&#127911; <strong>External Player:</strong> Stream this FLV recording directly in VLC player or download it below.</div>
+                <div>&#127911; <strong>External Player:</strong> Stream this FLV recording directly in VLC or media player.</div>
               </div>
             </div>
           `;

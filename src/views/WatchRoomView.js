@@ -132,6 +132,8 @@ export function setupWatchRoomEvents() {
     clearTimeout(manifestRetryTimer);
     manifestRetryTimer = null;
   }
+  const oldYt = document.getElementById('youtube-player-frame');
+  if (oldYt) oldYt.remove();
 
   const onStreamReady = (s) => {
     if (!s) return;
@@ -318,6 +320,46 @@ async function initPlayer(stream) {
     offlinePollTimer = null;
   }
 
+  // Check for simulated YouTube live broadcast
+  const ytUrl = stream?.youtubeUrl || (stream?.hlsUrl && (stream.hlsUrl.includes('youtube.com') || stream.hlsUrl.includes('youtu.be')) ? stream.hlsUrl : null);
+  if (stream?.isSimulated || ytUrl) {
+    const match = ytUrl ? ytUrl.match(/(?:v=|\/live\/|\/embed\/|youtu\.be\/|\/v\/)([^?&/]+)/) : null;
+    const videoId = match ? match[1] : null;
+    if (videoId) {
+      if (activeHls) {
+        activeHls.destroy();
+        activeHls = null;
+      }
+      const vid = document.getElementById('stream-video');
+      if (vid) {
+        vid.pause();
+        vid.style.display = 'none';
+      }
+      const unmuteBtn = document.getElementById('player-unmute-btn');
+      if (unmuteBtn) unmuteBtn.style.display = 'none';
+      offlineEl?.classList.add('hidden');
+
+      let ytFrame = document.getElementById('youtube-player-frame');
+      if (!ytFrame) {
+        ytFrame = document.createElement('iframe');
+        ytFrame.id = 'youtube-player-frame';
+        ytFrame.style.cssText = 'width:100%;height:100%;border:none;position:absolute;inset:0;z-index:2;';
+        ytFrame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+        ytFrame.allowFullscreen = true;
+        document.getElementById('player-container')?.appendChild(ytFrame);
+      }
+      ytFrame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
+      ytFrame.style.display = 'block';
+      return;
+    }
+  }
+
+  // Not YouTube simulated: clean up any existing iframe and restore video element
+  const oldYt = document.getElementById('youtube-player-frame');
+  if (oldYt) {
+    oldYt.remove();
+  }
+
   let hlsSource = stream.hlsUrl;
   if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
     hlsSource = hlsSource
@@ -327,6 +369,7 @@ async function initPlayer(stream) {
 
   const video = document.getElementById('stream-video');
   if (!video) return;
+  video.style.display = 'block';
 
   if (activeHls) {
     activeHls.destroy();

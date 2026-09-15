@@ -61,7 +61,10 @@ async function loadClips() {
           </div>
         </div>
         <div class="clip-info">
-          <div class="clip-title truncate" title="${escapeHtml(c.title || 'Untitled Clip')}">${escapeHtml(c.title || 'Untitled Clip')}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+            <div class="clip-title truncate" title="${escapeHtml(c.title || 'Untitled Clip')}" style="flex:1;">${escapeHtml(c.title || 'Untitled Clip')}</div>
+            ${c.categoryName ? `<span class="badge-category" style="font-size:10px;padding:1px 6px;flex-shrink:0;">${escapeHtml(c.categoryName)}</span>` : ''}
+          </div>
           <div class="clip-meta" style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
             <span style="color:var(--color-text-muted);font-size:12px;">by <strong style="color:#fff;">${escapeHtml(c.creatorName || c.creatorUsername || 'Streamer')}</strong></span>
             ${c.channelName ? `<span style="color:var(--color-cyan-primary);font-size:12px;">${escapeHtml(c.channelName)}</span>` : ''}

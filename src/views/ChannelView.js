@@ -161,8 +161,15 @@ async function loadTabContent(channelId) {
             <span class="vod-duration">${v.duration || ''}</span>
           </div>
           <div class="vod-info">
-            <div class="vod-title">${escapeHtml(v.title || 'Untitled VOD')}</div>
-            <div class="vod-meta">${v.rewatchCount || 0} views &middot; ${v.chatMessageCount || 0} messages</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
+              <div class="vod-title" style="margin:0;">${escapeHtml(v.title || 'Untitled VOD')}</div>
+              ${v.categoryName ? `<span class="badge-category" style="font-size:10px;padding:1px 6px;">${escapeHtml(v.categoryName)}</span>` : ''}
+            </div>
+            <div class="vod-meta" style="display:flex;gap:10px;align-items:center;">
+              <span>${v.rewatchCount || 0} views</span>
+              <span>&bull;</span>
+              <span>${v.chatMessageCount || 0} messages</span>
+            </div>
           </div>
         </div>
       `).join('')}</div>`;

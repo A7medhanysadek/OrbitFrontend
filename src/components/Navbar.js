@@ -34,6 +34,10 @@ export function renderSidebar() {
           <span class="nav-icon">${Icons.clip}</span>
           <span class="nav-label">Top Clips</span>
         </a>
+        <a class="sidebar-link ${view === 'settings' ? 'active' : ''}" data-nav="settings">
+          <span class="nav-icon">${Icons.settings}</span>
+          <span class="nav-label">Settings</span>
+        </a>
 
         <div class="sidebar-section">Creator</div>
         <a class="sidebar-link ${view === 'studio' ? 'active' : ''}" data-nav="studio">
@@ -199,6 +203,8 @@ export function setupNavEvents() {
           store.navigate('profile');
         } else if (action === 'studio') {
           store.navigate('studio');
+        } else if (action === 'settings') {
+          store.navigate('settings');
         }
         menu.classList.add('hidden');
       });

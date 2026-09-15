@@ -1,4 +1,4 @@
-﻿/* Orbit Design System Tokens - Cosmic Desktop Theme */
+/* Orbit Design System Tokens - Cosmic Desktop Theme */
 :root {
   --bg-gradient-space: linear-gradient(192.3deg, #1D2228 1.23%, #0B0C0F 98.77%);
   --bg-gradient-header: linear-gradient(201.6deg, #1D2228 8.23%, #0B0C0F 91.77%);
@@ -60,4 +60,42 @@
   --transition-normal: 0.25s ease;
   --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-spring: 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Light Theme Mode Overrides */
+html.theme-light, body.theme-light {
+  --bg-gradient-space: linear-gradient(192.3deg, #F8FAFC 1.23%, #EDF2F7 98.77%);
+  --bg-gradient-header: linear-gradient(201.6deg, #FFFFFF 8.23%, #F8FAFC 91.77%);
+  --bg-gradient-card: linear-gradient(220.75deg, #FFFFFF 3.2%, #F1F5F9 96.8%);
+  --color-space-black: #F1F5F9;
+  --color-space-dark: #E2E8F0;
+  --color-space-panel: #FFFFFF;
+  --color-space-slate: #CBD5E1;
+  --color-space-charcoal: #E2E8F0;
+  --color-space-navbar: #FFFFFF;
+  --color-text-white: #0F172A;
+  --color-text-muted: #64748B;
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.05);
+  --shadow-card-hover: 0 8px 30px rgba(0, 174, 189, 0.15);
+}
+html.theme-light .card {
+  background: #FFFFFF;
+  border-color: rgba(0, 174, 189, 0.2);
+}
+html.theme-light .data-table td {
+  color: #0F172A;
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+html.theme-light .input-dark {
+  background: rgba(0, 0, 0, 0.04);
+  color: #0F172A;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+html.theme-light select, html.theme-light select.input-dark {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+}
+html.theme-light select option {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
 }

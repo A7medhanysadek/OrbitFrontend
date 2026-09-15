@@ -18,6 +18,7 @@ import { renderProfileView, setupProfileEvents } from './views/ProfileView.js';
 import { renderSearchView, setupSearchEvents } from './views/SearchView.js';
 import { renderAdminView, setupAdminEvents } from './views/AdminView.js';
 import { renderModView, setupModEvents } from './views/ModView.js';
+import { renderSettingsView, setupSettingsEvents, applyThemeMode } from './views/SettingsView.js';
 
 const appEl = document.getElementById('app');
 
@@ -41,6 +42,7 @@ const viewMap = {
   'search': { render: renderSearchView, setup: setupSearchEvents },
   'admin': { render: renderAdminView, setup: setupAdminEvents },
   'mod': { render: renderModView, setup: setupModEvents },
+  'settings': { render: renderSettingsView, setup: setupSettingsEvents },
 };
 
 let currentRenderedView = null;
@@ -97,6 +99,8 @@ function renderApp() {
 }
 
 store.subscribe(() => renderApp());
+const savedTheme = localStorage.getItem('orbit_theme') || 'dark';
+applyThemeMode(savedTheme);
 renderApp();
 fetchMediaConfig().catch(err => console.warn('Media server config init:', err));
 console.log('Orbit Desktop Platform Ready');
