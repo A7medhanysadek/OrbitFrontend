@@ -180,6 +180,9 @@ export function renderWatchRoomView() {
         <div class="player-wrapper" id="player-container" style="position:relative;border-radius:0;aspect-ratio:16/9;background:#000;overflow:hidden;">
           <video id="stream-video" style="width:100%;height:100%;background:#000;" autoplay playsinline></video>
 
+          <!-- Interaction Shield: Captures 100% of mouse/hover interactions so YouTube iframe never shows hover options -->
+          <div id="orbit-player-shield" style="position:absolute;inset:0;z-index:4;cursor:pointer;background:rgba(0,0,0,0.001);pointer-events:auto;"></div>
+
           <!-- Authentic Orbit Stream Controls Overlay (Kick & Twitch style with Live DVR) -->
           <div id="orbit-player-controls" class="orbit-player-controls-overlay" style="position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:flex-end;z-index:10;opacity:0;transition:opacity 0.25s ease;">
             <!-- DVR Scrubber Bar Area -->
@@ -390,10 +393,6 @@ export function setupWatchRoomEvents() {
       store.navigate('login');
       return;
     }
-    if (activeS?.isSimulated || (activeS?.hlsUrl && (activeS.hlsUrl.includes('youtube.com') || activeS.hlsUrl.includes('youtu.be')))) {
-      store.showToast('Live clipping is available for native broadcasts. YouTube simulated streams do not record on the media server.', 'warning');
-      return;
-    }
     store.openModal('slice', { streamId: sid, channelId: activeS?.channelId });
     showSliceModal(sid, activeS?.channelId);
   });
@@ -426,6 +425,11 @@ export function setupWatchRoomEvents() {
     resetHideControlsTimer();
   };
   playBtn?.addEventListener('click', togglePlay);
+
+  const shieldEl = document.getElementById('orbit-player-shield');
+  shieldEl?.addEventListener('click', togglePlay);
+  shieldEl?.addEventListener('dblclick', () => fsBtn?.click());
+  shieldEl?.addEventListener('mousemove', resetHideControlsTimer);
 
   const toggleMute = () => {
     if (playerControlsState.isMuted) {
@@ -775,11 +779,12 @@ async function initPlayer(stream) {
       if (!ytFrame) {
         ytFrame = document.createElement('iframe');
         ytFrame.id = 'youtube-player-frame';
-        ytFrame.style.cssText = 'width:100%;height:100%;border:none;position:absolute;inset:0;z-index:2;pointer-events:none;';
         ytFrame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
         ytFrame.allowFullscreen = true;
         document.getElementById('player-container')?.appendChild(ytFrame);
       }
+      // Crop native YouTube top title/share and bottom watermark outside the player viewport
+      ytFrame.style.cssText = 'position:absolute;top:-60px;left:0;width:100%;height:calc(100% + 120px);border:none;z-index:2;pointer-events:none;';
       // Authentic Orbit embed: hide YouTube controls, annotations, related videos, keyboard shortcuts, branding
       const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
       ytFrame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(currentOrigin)}`;

@@ -2,7 +2,40 @@ import { apiClient } from './client.js';
 import { fetchMediaConfig, resolveMediaUrl } from '../utils/mediaConfig.js';
 
 export const clipApi = {
-  create: (data) => apiClient('/api/Clip/create', { method: 'POST', body: JSON.stringify(data) }),
+  create: async (data) => {
+    // Multi-tier resilient registration:
+    // 1. Try /api/Clip/create
+    try {
+      return await apiClient('/api/Clip/create', { method: 'POST', body: JSON.stringify(data) });
+    } catch (err) {
+      if (err && (err.status === 404 || err.status === 405)) {
+        console.warn(`[clipApi] /api/Clip/create returned ${err.status}, trying /api/Clip...`);
+        // 2. Try /api/Clip
+        try {
+          return await apiClient('/api/Clip', { method: 'POST', body: JSON.stringify(data) });
+        } catch (err2) {
+          if (err2 && (err2.status === 404 || err2.status === 405)) {
+            console.warn(`[clipApi] /api/Clip returned ${err2.status}, falling back to /api/Clip/slice with pre-generated videoUrl...`);
+            // 3. Fall back to /api/Clip/slice (present across all backend builds)
+            return await apiClient('/api/Clip/slice', {
+              method: 'POST',
+              body: JSON.stringify({
+                liveStreamId: data.liveStreamId || data.streamId || null,
+                streamId: data.liveStreamId || data.streamId || null,
+                channelId: data.channelId,
+                title: data.title,
+                durationSeconds: data.durationSeconds,
+                videoUrl: data.videoUrl,
+                thumbnailUrl: data.thumbnailUrl
+              })
+            });
+          }
+          throw err2;
+        }
+      }
+      throw err;
+    }
+  },
   slice: async (data) => {
     // 1. Attempt standard backend slice
     try {
@@ -62,17 +95,28 @@ export const clipApi = {
         const fullThumbUrl = sliceResult.thumbnailUrl ? resolveMediaUrl(sliceResult.thumbnailUrl) : null;
         console.log('[clipApi] Registering created clip with backend API...');
 
-        return await apiClient('/api/Clip/create', {
-          method: 'POST',
-          body: JSON.stringify({
-            title: data.title || 'Untitled Clip',
-            channelId: data.channelId,
-            liveStreamId: data.liveStreamId || data.streamId || null,
-            categoryId: data.categoryId || null,
-            durationSeconds: sliceResult.durationSeconds || data.durationSeconds || 60,
-            videoUrl: fullClipUrl,
-            thumbnailUrl: fullThumbUrl
-          })
+        return await clipApi.create({
+          title: data.title || 'Untitled Clip',
+          channelId: data.channelId,
+          liveStreamId: data.liveStreamId || data.streamId || null,
+          categoryId: data.categoryId || null,
+          durationSeconds: sliceResult.durationSeconds || data.durationSeconds || 60,
+          videoUrl: fullClipUrl,
+          thumbnailUrl: fullThumbUrl
+        });
+      }
+
+      // Fallback: If media server has no live chunks (e.g. simulated stream), register highlight directly
+      if (data.channelId || data.liveStreamId) {
+        console.log('[clipApi] Media server has no active stream chunks, registering highlight with backend...');
+        return await clipApi.create({
+          title: data.title || 'Untitled Clip',
+          channelId: data.channelId,
+          liveStreamId: data.liveStreamId || data.streamId || null,
+          categoryId: data.categoryId || null,
+          durationSeconds: data.durationSeconds || 60,
+          videoUrl: data.recordingFileName || data.videoUrl || null,
+          thumbnailUrl: data.thumbnailUrl || null
         });
       }
 
