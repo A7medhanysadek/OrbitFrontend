@@ -2,6 +2,7 @@ import { store } from '../state/store.js';
 import { channelApi } from '../api/channel.js';
 import { clipApi } from '../api/clip.js';
 import { vodApi } from '../api/vod.js';
+import { streamApi } from '../api/stream.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { openClipPlayerModal } from './ClipsFeedView.js';
 import { openVodPlayerModal } from '../components/VodPlayerModal.js';
@@ -28,11 +29,13 @@ export function renderChannelView() {
         <div class="channel-meta">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <h1 id="ch-name" style="margin:0;">Loading...</h1>
+            <span id="ch-live-badge" style="display:none;" class="badge-live" data-channel-live="true"></span>
             <span id="ch-followers" class="badge" style="background:rgba(0,242,254,0.12);color:var(--color-cyan-neon,#00f2fe);border:1px solid rgba(0,242,254,0.25);font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;">0 followers</span>
           </div>
           <p class="channel-desc" id="ch-desc" style="margin-top:6px;"></p>
         </div>
-        <div class="channel-actions">
+        <div class="channel-actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button id="ch-watch-live-btn" class="btn btn-sm" style="display:none;gap:6px;font-weight:700;background:linear-gradient(135deg,#e53e3e,#f56565);color:#fff;border:none;box-shadow:0 0 16px rgba(229,62,62,0.4);animation:live-glow 2s ease-in-out infinite alternate;">${Icons.play} Watch Live</button>
           <button id="ch-follow-btn" class="btn btn-cyan btn-sm">${Icons.follow} Follow</button>
         </div>
       </div>
@@ -79,6 +82,37 @@ async function loadChannel(channelId) {
     const chName = ch.name || ch.channelName || 'Channel';
     const nameEl = document.getElementById('ch-name');
     if (nameEl) nameEl.innerHTML = `${escapeHtml(chName)} ${Icons.checkCircle}`;
+
+    // ── Live Indicator (like Kick/Twitch) ──
+    const liveBadge = document.getElementById('ch-live-badge');
+    const watchLiveBtn = document.getElementById('ch-watch-live-btn');
+    if (ch.isLive) {
+      if (liveBadge) {
+        liveBadge.style.display = 'inline-flex';
+        liveBadge.innerHTML = `<span class="cosmic-beacon" style="width:8px;height:8px;"></span> LIVE`;
+        liveBadge.style.cssText += 'display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 12px;animation:live-glow 2s ease-in-out infinite alternate;';
+      }
+      if (watchLiveBtn) {
+        watchLiveBtn.style.display = 'inline-flex';
+        watchLiveBtn.onclick = async () => {
+          try {
+            const streams = await streamApi.getLiveStreams();
+            const activeStream = streams.find(s => s.channelId === parseInt(channelId));
+            if (activeStream) {
+              store.setActiveStream(activeStream);
+              store.navigate('watch', { streamId: activeStream.id });
+            } else {
+              store.showToast('Stream just ended', 'info');
+            }
+          } catch (e) {
+            store.showToast('Could not load stream', 'error');
+          }
+        };
+      }
+    } else {
+      if (liveBadge) liveBadge.style.display = 'none';
+      if (watchLiveBtn) watchLiveBtn.style.display = 'none';
+    }
 
     const descEl = document.getElementById('ch-desc');
     if (descEl) descEl.textContent = ch.description || '';

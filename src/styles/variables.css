@@ -63,7 +63,7 @@
 }
 
 /* Light Theme Mode Overrides */
-html.theme-light, body.theme-light {
+html.theme-light, body.theme-light, [data-theme="light"] {
   --bg-gradient-space: linear-gradient(192.3deg, #F8FAFC 1.23%, #EDF2F7 98.77%);
   --bg-gradient-header: linear-gradient(201.6deg, #FFFFFF 8.23%, #F8FAFC 91.77%);
   --bg-gradient-card: linear-gradient(220.75deg, #FFFFFF 3.2%, #F1F5F9 96.8%);
@@ -81,76 +81,107 @@ html.theme-light, body.theme-light {
   --shadow-dropdown: 0 8px 32px rgba(15, 23, 42, 0.12);
   --shadow-elevated: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
-html.theme-light .card {
+html.theme-light .card, [data-theme="light"] .card {
   background: #FFFFFF;
   border: 1px solid rgba(0, 174, 189, 0.18);
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
 }
-html.theme-light .stat-card {
+html.theme-light .stat-card, [data-theme="light"] .stat-card {
   background: #FFFFFF;
   border: 1px solid rgba(0, 174, 189, 0.18);
 }
-html.theme-light .data-table {
+html.theme-light .data-table, [data-theme="light"] .data-table {
   background: #FFFFFF;
 }
-html.theme-light .data-table th {
+html.theme-light .data-table th, [data-theme="light"] .data-table th {
   background: #F8FAFC;
   color: #475569;
   border-bottom: 2px solid #E2E8F0;
 }
-html.theme-light .data-table td {
+html.theme-light .data-table td, [data-theme="light"] .data-table td {
   color: #0F172A;
   border-bottom-color: #E2E8F0;
 }
 html.theme-light .input-dark,
 html.theme-light input.input-dark,
-html.theme-light textarea.input-dark {
+html.theme-light textarea.input-dark,
+[data-theme="light"] .input-dark,
+[data-theme="light"] input.input-dark,
+[data-theme="light"] textarea.input-dark {
   background: #F8FAFC;
   color: #0F172A;
   border: 1px solid #CBD5E1;
 }
-html.theme-light .input-dark:focus {
+html.theme-light .input-dark:focus,
+[data-theme="light"] .input-dark:focus {
   background: #FFFFFF;
   border-color: var(--color-cyan-primary);
   box-shadow: 0 0 0 3px rgba(0, 174, 189, 0.15);
 }
-html.theme-light select, html.theme-light select.input-dark {
+html.theme-light select, html.theme-light select.input-dark,
+[data-theme="light"] select, [data-theme="light"] select.input-dark {
   background-color: #FFFFFF !important;
   color: #0F172A !important;
   border-color: #CBD5E1 !important;
 }
-html.theme-light select option {
+html.theme-light select option,
+[data-theme="light"] select option {
   background-color: #FFFFFF !important;
   color: #0F172A !important;
 }
-html.theme-light .sidebar {
+html.theme-light .sidebar,
+[data-theme="light"] .sidebar {
   background: #FFFFFF;
   border-right-color: #E2E8F0;
 }
-html.theme-light .topbar {
+html.theme-light .topbar,
+[data-theme="light"] .topbar {
   background: rgba(255, 255, 255, 0.95);
   border-bottom-color: #E2E8F0;
 }
-html.theme-light .topbar-brand-title {
+html.theme-light .topbar-brand-title,
+[data-theme="light"] .topbar-brand-title {
   color: #0F172A;
 }
-html.theme-light .chat-panel {
+html.theme-light .chat-panel,
+[data-theme="light"] .chat-panel {
   background: #FFFFFF !important;
   border-left-color: #E2E8F0 !important;
 }
-html.theme-light .chat-header {
+html.theme-light .chat-header,
+[data-theme="light"] .chat-header {
   border-bottom-color: #E2E8F0 !important;
 }
-html.theme-light .chat-header span {
+html.theme-light .chat-header span,
+[data-theme="light"] .chat-header span {
   color: #0F172A !important;
 }
-html.theme-light .chat-text {
+html.theme-light .chat-text,
+[data-theme="light"] .chat-text {
   color: #1E293B !important;
 }
-html.theme-light .tab-btn {
+html.theme-light .tab-btn,
+[data-theme="light"] .tab-btn {
   color: #64748B;
 }
-html.theme-light .tab-btn.active {
+html.theme-light .tab-btn.active,
+[data-theme="light"] .tab-btn.active {
   color: var(--color-cyan-primary);
   border-bottom-color: var(--color-cyan-primary);
+}
+html.theme-light .modal-content,
+[data-theme="light"] .modal-content {
+  background: #FFFFFF !important;
+  color: #0F172A !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15) !important;
+}
+html.theme-light #watch-channel-info,
+[data-theme="light"] #watch-channel-info {
+  background: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+html.theme-light .orbit-player-controls-overlay,
+[data-theme="light"] .orbit-player-controls-overlay {
+  background: transparent;
 }

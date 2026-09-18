@@ -232,8 +232,15 @@ export function renderWatchRoomView() {
                 </div>
               </div>
 
-              <!-- Right: Fullscreen -->
-              <div style="display:flex;align-items:center;gap:10px;">
+              <!-- Right: Options, PiP, Theater & Fullscreen -->
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span id="orbit-ctrl-quality" style="font-size:10px;font-weight:700;color:var(--color-cyan-neon,#00f2fe);background:rgba(0,221,238,0.12);border:1px solid rgba(0,221,238,0.3);padding:2px 7px;border-radius:4px;letter-spacing:0.04em;" title="Quality: 1080p60 Ultra-Low Latency">1080p60</span>
+                <button id="orbit-ctrl-pip" title="Picture-in-Picture (P)" class="orbit-ctrl-btn">
+                  <span style="font-size:15px;">🗔</span>
+                </button>
+                <button id="orbit-ctrl-theater" title="Theater Mode (T)" class="orbit-ctrl-btn">
+                  <span id="orbit-theater-icon" style="font-size:15px;">⬚</span>
+                </button>
                 <button id="orbit-ctrl-fullscreen" title="Fullscreen (F)" class="orbit-ctrl-btn">
                   <span id="orbit-fullscreen-icon" style="font-size:16px;">⛶</span>
                 </button>
@@ -476,6 +483,41 @@ export function setupWatchRoomEvents() {
     }
   });
 
+  // Theater Mode
+  let isTheater = false;
+  const theaterBtn = document.getElementById('orbit-ctrl-theater');
+  const toggleTheater = () => {
+    isTheater = !isTheater;
+    if (playerContainer) {
+      if (isTheater) {
+        playerContainer.style.maxHeight = 'calc(100vh - 120px)';
+        playerContainer.style.height = 'calc(100vh - 120px)';
+        theaterBtn?.classList.add('active');
+        store.showToast('Theater mode enabled (T)', 'info');
+      } else {
+        playerContainer.style.maxHeight = '';
+        playerContainer.style.height = '';
+        theaterBtn?.classList.remove('active');
+      }
+    }
+  };
+  theaterBtn?.addEventListener('click', toggleTheater);
+
+  // Picture-in-Picture
+  const pipBtn = document.getElementById('orbit-ctrl-pip');
+  const togglePip = async () => {
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => {});
+    } else if (videoEl && videoEl.requestPictureInPicture) {
+      try {
+        await videoEl.requestPictureInPicture();
+      } catch (err) {
+        store.showToast('Picture-in-Picture not available for this stream', 'info');
+      }
+    }
+  };
+  pipBtn?.addEventListener('click', togglePip);
+
   // DVR Rewind / Forward / Live edge sync buttons
   document.getElementById('orbit-ctrl-rewind-10')?.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -576,6 +618,12 @@ export function setupWatchRoomEvents() {
     } else if (e.key === 'f' || e.key === 'F') {
       e.preventDefault();
       fsBtn?.click();
+    } else if (e.key === 't' || e.key === 'T') {
+      e.preventDefault();
+      toggleTheater();
+    } else if (e.key === 'p' || e.key === 'P') {
+      e.preventDefault();
+      togglePip();
     }
   };
   window.addEventListener('keydown', handleWatchKeydown);
@@ -727,7 +775,7 @@ async function initPlayer(stream) {
       if (!ytFrame) {
         ytFrame = document.createElement('iframe');
         ytFrame.id = 'youtube-player-frame';
-        ytFrame.style.cssText = 'width:100%;height:100%;border:none;position:absolute;inset:0;z-index:2;';
+        ytFrame.style.cssText = 'width:100%;height:100%;border:none;position:absolute;inset:0;z-index:2;pointer-events:none;';
         ytFrame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
         ytFrame.allowFullscreen = true;
         document.getElementById('player-container')?.appendChild(ytFrame);
@@ -1087,7 +1135,7 @@ function createMessageHtml(msg, isModOrStreamer) {
   const timeStr = sentAt ? new Date(sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
   return `
-    <div class="chat-msg" data-msg-id="${mid || ''}" style="display:flex;align-items:flex-start;justify-content:space-between;padding:4px 6px;border-radius:6px;gap:6px;">
+    <div class="chat-msg chat-msg-animate" data-msg-id="${mid || ''}" style="display:flex;align-items:flex-start;justify-content:space-between;padding:4px 6px;border-radius:6px;gap:6px;">
       <div style="flex:1;word-break:break-word;font-size:13px;line-height:1.4;">
         <span style="font-size:10px;color:var(--color-text-muted);margin-right:4px;opacity:0.6;">${timeStr}</span>
         ${badge ? `<span style="font-size:12px;margin-right:4px;">${badge}</span>` : ''}
