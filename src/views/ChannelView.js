@@ -8,8 +8,11 @@ import { openClipPlayerModal } from './ClipsFeedView.js';
 import { openVodPlayerModal } from '../components/VodPlayerModal.js';
 import { DEFAULT_BANNER, attachMediaImages } from '../utils/mediaImage.js';
 
+import { resolveMediaUrl } from '../utils/mediaConfig.js';
+
 let activeTab = 'vods';
 let currentChannelData = null;
+let activeChannelHls = null;
 
 function escapeHtml(str) {
   if (!str) return '';
@@ -23,6 +26,48 @@ function escapeHtml(str) {
 export function renderChannelView() {
   return `
     <div>
+      <!-- Kick/Twitch Style Live Stream Hero (Embedded Player when Channel is Live) -->
+      <div id="ch-live-hero-container" style="display:none;margin-bottom:24px;border-radius:16px;overflow:hidden;background:rgba(4,7,18,0.96);border:1px solid rgba(255,59,48,0.4);box-shadow:0 8px 32px rgba(255,59,48,0.22);position:relative;">
+        <div id="ch-hero-player-wrapper" style="position:relative;width:100%;aspect-ratio:16/9;max-height:560px;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+          <video id="ch-live-video" style="width:100%;height:100%;object-fit:contain;background:#000;" playsinline autoplay muted></video>
+
+          <!-- Top Overlay: Badges and Action Controls -->
+          <div style="position:absolute;top:14px;left:14px;right:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:6;pointer-events:none;">
+            <div style="display:flex;align-items:center;gap:8px;pointer-events:auto;flex-wrap:wrap;">
+              <span class="badge-live" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:5px 12px;box-shadow:0 0 16px rgba(255,59,48,0.7);letter-spacing:0.05em;font-weight:800;">
+                <span class="cosmic-beacon" style="width:8px;height:8px;background:#fff;"></span> LIVE NOW
+              </span>
+              <span id="ch-hero-viewers-badge" style="background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);color:#eee;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.15);display:inline-flex;align-items:center;gap:6px;">
+                👥 <span id="ch-hero-viewers">1 viewer</span>
+              </span>
+              <span id="ch-hero-category-badge" style="background:rgba(0,242,254,0.15);color:var(--color-cyan-neon,#00f2fe);border:1px solid rgba(0,242,254,0.35);font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;">
+                Gaming
+              </span>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:10px;pointer-events:auto;">
+              <button id="ch-hero-unmute-btn" class="btn btn-sm" style="background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.25);color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">
+                🔊 Unmute
+              </button>
+              <button id="ch-hero-watch-room-btn" class="btn btn-sm" style="background:linear-gradient(135deg, #00f2fe, #00aebd);color:#040712;font-weight:800;border:none;padding:6px 16px;border-radius:20px;box-shadow:0 0 18px rgba(0,242,254,0.4);cursor:pointer;">
+                💬 Watch Room & Chat
+              </button>
+              <button id="ch-hero-fullscreen-btn" class="btn btn-ghost btn-sm" title="Fullscreen" style="color:#fff;padding:6px 10px;border-radius:8px;">
+                ⛶
+              </button>
+            </div>
+          </div>
+
+          <!-- Bottom Stream Title Overlay -->
+          <div style="position:absolute;bottom:0;left:0;right:0;padding:28px 20px 14px;background:linear-gradient(180deg, transparent 0%, rgba(4,7,18,0.92) 100%);display:flex;align-items:center;justify-content:space-between;gap:16px;z-index:5;">
+            <div>
+              <h2 id="ch-hero-title" style="margin:0;font-size:18px;font-weight:800;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.8);">Stream Title</h2>
+              <div id="ch-hero-meta" style="font-size:12px;color:var(--color-text-muted,#aaa);margin-top:4px;">Broadcasting live on Orbit</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="channel-banner" id="ch-banner"><div class="channel-banner-overlay"></div></div>
       <div class="channel-profile" id="ch-profile">
         <div class="channel-avatar" id="ch-avatar"></div>
@@ -62,6 +107,12 @@ export function setupChannelEvents() {
   const channelId = params?.channelId;
   if (!channelId) return;
 
+  // Clean up any lingering HLS player from previous view
+  if (activeChannelHls) {
+    try { activeChannelHls.destroy(); } catch (_) {}
+    activeChannelHls = null;
+  }
+
   loadChannel(channelId);
 
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -83,35 +134,162 @@ async function loadChannel(channelId) {
     const nameEl = document.getElementById('ch-name');
     if (nameEl) nameEl.innerHTML = `${escapeHtml(chName)} ${Icons.checkCircle}`;
 
-    // ── Live Indicator (like Kick/Twitch) ──
+    // ── Live Indicator & Embedded Live Hero Player (Kick/Twitch Style) ──
     const liveBadge = document.getElementById('ch-live-badge');
     const watchLiveBtn = document.getElementById('ch-watch-live-btn');
+    const heroContainer = document.getElementById('ch-live-hero-container');
+    const avatar = document.getElementById('ch-avatar');
+
     if (ch.isLive) {
       if (liveBadge) {
         liveBadge.style.display = 'inline-flex';
         liveBadge.innerHTML = `<span class="cosmic-beacon" style="width:8px;height:8px;"></span> LIVE`;
         liveBadge.style.cssText += 'display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 12px;animation:live-glow 2s ease-in-out infinite alternate;';
       }
-      if (watchLiveBtn) {
-        watchLiveBtn.style.display = 'inline-flex';
-        watchLiveBtn.onclick = async () => {
-          try {
-            const streams = await streamApi.getLiveStreams();
-            const activeStream = streams.find(s => s.channelId === parseInt(channelId));
-            if (activeStream) {
+
+      // Add Twitch/Kick glowing red live ring around avatar
+      if (avatar) {
+        avatar.style.border = '3px solid #ff3b30';
+        avatar.style.boxShadow = '0 0 18px rgba(255, 59, 48, 0.75)';
+      }
+
+      // Fetch active stream to embed live hero player
+      try {
+        const streams = await streamApi.getLiveStreams().catch(() => []);
+        const activeStream = streams.find(s => s.channelId === parseInt(channelId));
+
+        if (activeStream && heroContainer) {
+          heroContainer.style.display = 'block';
+
+          // Update Hero Metadata
+          const heroTitle = document.getElementById('ch-hero-title');
+          if (heroTitle) heroTitle.textContent = activeStream.title || `${chName}'s Live Broadcast`;
+
+          const heroCategory = document.getElementById('ch-hero-category-badge');
+          if (heroCategory) {
+            heroCategory.textContent = activeStream.category?.name || activeStream.categoryName || 'Live Stream';
+          }
+
+          const heroViewers = document.getElementById('ch-hero-viewers');
+          if (heroViewers) {
+            const count = activeStream.peakViewers || activeStream.viewers || 1;
+            heroViewers.textContent = `${count} viewer${count === 1 ? '' : 's'}`;
+          }
+
+          const heroMeta = document.getElementById('ch-hero-meta');
+          if (heroMeta && activeStream.startedAt) {
+            const minAgo = Math.max(1, Math.round((Date.now() - new Date(activeStream.startedAt).getTime()) / 60000));
+            heroMeta.textContent = `Streaming for ${minAgo} min • ${activeStream.category?.name || 'General'}`;
+          }
+
+          // Wire Watch Room & Chat button
+          const goToWatchBtn = document.getElementById('ch-hero-watch-room-btn');
+          if (goToWatchBtn) {
+            goToWatchBtn.onclick = () => {
               store.setActiveStream(activeStream);
               store.navigate('watch', { streamId: activeStream.id });
-            } else {
-              store.showToast('Stream just ended', 'info');
-            }
-          } catch (e) {
-            store.showToast('Could not load stream', 'error');
+            };
           }
-        };
+
+          if (watchLiveBtn) {
+            watchLiveBtn.style.display = 'inline-flex';
+            watchLiveBtn.onclick = () => {
+              store.setActiveStream(activeStream);
+              store.navigate('watch', { streamId: activeStream.id });
+            };
+          }
+
+          // Wire Video Element & HLS
+          const video = document.getElementById('ch-live-video');
+          const unmuteBtn = document.getElementById('ch-hero-unmute-btn');
+          const fullscreenBtn = document.getElementById('ch-hero-fullscreen-btn');
+          const heroWrapper = document.getElementById('ch-hero-player-wrapper');
+
+          if (unmuteBtn && video) {
+            unmuteBtn.onclick = () => {
+              video.muted = !video.muted;
+              unmuteBtn.textContent = video.muted ? '🔊 Unmute' : '🔇 Mute';
+            };
+          }
+
+          if (fullscreenBtn && heroWrapper) {
+            fullscreenBtn.onclick = () => {
+              if (!document.fullscreenElement) {
+                heroWrapper.requestFullscreen().catch(() => {});
+              } else {
+                document.exitFullscreen().catch(() => {});
+              }
+            };
+          }
+
+          // Check for simulated stream (YouTube embed)
+          const isYouTube = activeStream.recordingFileName?.includes('youtube.com') ||
+                            activeStream.recordingFileName?.includes('youtu.be') ||
+                            activeStream.hlsUrl?.includes('youtube.com') ||
+                            activeStream.title?.toLowerCase().includes('space') ||
+                            activeStream.title?.toLowerCase().includes('nasa');
+
+          if (isYouTube && heroWrapper) {
+            if (video) video.style.display = 'none';
+            let ytId = 'live_stream';
+            const ytMatch = (activeStream.recordingFileName || activeStream.hlsUrl || '').match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+            if (ytMatch) ytId = ytMatch[1];
+
+            const ytFrame = document.createElement('iframe');
+            ytFrame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:none;';
+            ytFrame.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&controls=1&modestbranding=1`;
+            ytFrame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+            ytFrame.allowFullscreen = true;
+            heroWrapper.appendChild(ytFrame);
+          } else if (video) {
+            video.style.display = 'block';
+            let hlsSource = activeStream.hlsUrl || `${resolveMediaUrl(activeStream.hlsUrl || '')}`;
+            if (!hlsSource.includes('.m3u8')) {
+              hlsSource = `https://localhost:8443/hls/${ch.streamKey || activeStream.streamKey}.m3u8`;
+            }
+            if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+              hlsSource = hlsSource.replace('http://localhost:8080', 'https://localhost:8443').replace('http://127.0.0.1:8080', 'https://localhost:8443');
+            }
+
+            try {
+              const Hls = (await import('hls.js')).default;
+              if (Hls.isSupported()) {
+                if (activeChannelHls) activeChannelHls.destroy();
+                const hls = new Hls({
+                  xhrSetup: (xhr) => { xhr.setRequestHeader('ngrok-skip-browser-warning', 'true'); },
+                  enableWorker: true,
+                  lowLatencyMode: true
+                });
+                activeChannelHls = hls;
+                hls.loadSource(hlsSource);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                  video.play().catch(() => {});
+                });
+              } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = hlsSource;
+                video.play().catch(() => {});
+              }
+            } catch (hlsErr) {
+              console.warn('[ChannelView] Could not initialize HLS hero player:', hlsErr.message);
+            }
+          }
+        }
+      } catch (streamErr) {
+        console.warn('[ChannelView] Could not load active stream for channel:', streamErr.message);
       }
     } else {
       if (liveBadge) liveBadge.style.display = 'none';
       if (watchLiveBtn) watchLiveBtn.style.display = 'none';
+      if (heroContainer) heroContainer.style.display = 'none';
+      if (avatar) {
+        avatar.style.border = '';
+        avatar.style.boxShadow = '';
+      }
+      if (activeChannelHls) {
+        try { activeChannelHls.destroy(); } catch (_) {}
+        activeChannelHls = null;
+      }
     }
 
     const descEl = document.getElementById('ch-desc');
@@ -123,7 +301,6 @@ async function loadChannel(channelId) {
     const banner = document.getElementById('ch-banner');
     if (ch.coverPhotoUrl && banner) banner.style.background = `url(${ch.coverPhotoUrl}) center/cover`;
 
-    const avatar = document.getElementById('ch-avatar');
     if (avatar) {
       avatar.innerHTML = ch.profilePhotoUrl
         ? `<img src="${ch.profilePhotoUrl}" alt="${escapeHtml(chName)}" />`
