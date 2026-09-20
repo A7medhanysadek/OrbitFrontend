@@ -3,6 +3,7 @@ import { Icons } from './CosmicIcons.js';
 import { clearTokens, setCurrentUser } from '../api/client.js';
 import { ORBIT_LOGO } from '../utils/mediaImage.js';
 import { notificationApi } from '../api/notification.js';
+import { renderSaturnAvatar } from './OrbitEmotes.js';
 
 export function renderSidebar() {
   const state = store.getState();
@@ -34,10 +35,6 @@ export function renderSidebar() {
           <span class="nav-icon">${Icons.clip}</span>
           <span class="nav-label">Top Clips</span>
         </a>
-        <a class="sidebar-link ${view === 'settings' ? 'active' : ''}" data-nav="settings">
-          <span class="nav-icon">${Icons.settings}</span>
-          <span class="nav-label">Settings</span>
-        </a>
 
         <div class="sidebar-section">Creator</div>
         <a class="sidebar-link ${view === 'studio' ? 'active' : ''}" data-nav="studio">
@@ -62,11 +59,15 @@ export function renderSidebar() {
           ` : state.followedChannels.slice(0, 8).map(ch => `
             <div class="followed-item" data-channel-id="${ch.id || ch.channelId}">
               <div class="followed-avatar">
-                ${ch.profilePhotoUrl ? `<img src="${ch.profilePhotoUrl}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;" />` : `<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#00AEBD,#00DDEE);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#000;">${(ch.name || ch.channelName || 'C')[0].toUpperCase()}</div>`}
+                ${ch.isLive ? renderSaturnAvatar({
+                  src: ch.profilePhotoUrl,
+                  fallback: (ch.name || ch.channelName || 'C')[0].toUpperCase(),
+                  size: 'sm'
+                }) : (ch.profilePhotoUrl ? `<img src="${ch.profilePhotoUrl}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;" />` : `<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#00AEBD,#00DDEE);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#000;">${(ch.name || ch.channelName || 'C')[0].toUpperCase()}</div>`)}
               </div>
               <span class="followed-name" style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:4px;">
                 <span class="truncate">${ch.name || ch.channelName || 'Channel'}</span>
-                ${ch.isLive ? `<span style="width:7px;height:7px;border-radius:50%;background:var(--color-error,#ef4444);display:inline-block;box-shadow:0 0 6px #ef4444;flex-shrink:0;"></span>` : ''}
+                ${ch.isLive ? `<span style="width:7px;height:7px;border-radius:50%;background:var(--color-error,#ef4444);display:inline-block;box-shadow:0 0 6px #ef4444;flex-shrink:0;animation:sidebar-live-pulse 2s infinite;"></span>` : ''}
               </span>
             </div>
           `).join('')}

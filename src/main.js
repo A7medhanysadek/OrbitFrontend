@@ -1,4 +1,5 @@
 import { store } from './state/store.js';
+import { Icons } from './components/CosmicIcons.js';
 import { fetchMediaConfig } from './utils/mediaConfig.js';
 import { renderSidebar, renderTopbar, setupNavEvents } from './components/Navbar.js';
 import { renderSplashView, setupSplashEvents } from './views/SplashView.js';
@@ -86,14 +87,27 @@ function renderApp() {
 
     if (entry.setup) entry.setup();
   } else {
-    // If only sidebar collapsed changed, toggle class without tearing down page DOM
+    // If only sidebar collapsed changed, toggle classes without tearing down page DOM
+    const appSidebar = document.getElementById('app-sidebar') || document.querySelector('.app-sidebar');
     const appMain = document.querySelector('.app-main');
+    const toggleBtn = document.getElementById('sidebar-toggle-btn');
+    if (appSidebar) {
+      if (state.sidebarCollapsed) {
+        appSidebar.classList.add('collapsed');
+      } else {
+        appSidebar.classList.remove('collapsed');
+      }
+    }
     if (appMain) {
       if (state.sidebarCollapsed) {
         appMain.classList.add('sidebar-collapsed');
       } else {
         appMain.classList.remove('sidebar-collapsed');
       }
+    }
+    if (toggleBtn) {
+      toggleBtn.innerHTML = state.sidebarCollapsed ? Icons.chevronRight : Icons.chevronLeft;
+      toggleBtn.title = state.sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar';
     }
   }
 }

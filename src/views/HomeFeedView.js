@@ -1,10 +1,12 @@
 import { store } from '../state/store.js';
 import { streamApi } from '../api/stream.js';
 import { categoryApi } from '../api/category.js';
+import { channelApi } from '../api/channel.js';
 import { clipApi } from '../api/clip.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { openClipPlayerModal } from './ClipsFeedView.js';
 import { DEFAULT_BANNER, attachMediaImages } from '../utils/mediaImage.js';
+import { renderSaturnAvatar } from '../components/OrbitEmotes.js';
 
 let selectedCat = null;
 let currentHeroIndex = 0;
@@ -36,7 +38,7 @@ export function renderHomeFeedView() {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
           <div style="display:flex;align-items:center;gap:10px;">
             <span class="cosmic-beacon"></span>
-            <h2 style="font-family:var(--font-display);font-size:22px;color:#fff;margin:0;">
+            <h2 style="font-family:var(--font-display);font-size:22px;color:var(--color-text-white);margin:0;">
               Live Channels
             </h2>
           </div>
@@ -59,7 +61,7 @@ export function renderHomeFeedView() {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="font-size:20px;color:var(--color-cyan-neon);">${Icons.star || '⭐'}</span>
-            <h2 style="font-family:var(--font-display);font-size:20px;color:#fff;margin:0;">
+            <h2 style="font-family:var(--font-display);font-size:20px;color:var(--color-text-white);margin:0;">
               Top Categories
             </h2>
           </div>
@@ -77,7 +79,7 @@ export function renderHomeFeedView() {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="font-size:20px;color:var(--color-cyan-neon);">${Icons.clip || '🎬'}</span>
-            <h2 style="font-family:var(--font-display);font-size:20px;color:#fff;margin:0;">
+            <h2 style="font-family:var(--font-display);font-size:20px;color:var(--color-text-white);margin:0;">
               Trending Highlights &amp; Clips
             </h2>
           </div>
@@ -202,16 +204,13 @@ function renderHero() {
         <div class="kick-hero-details">
           <div>
             <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
-              <div class="orbit-avatar-ring" style="width:54px;height:54px;">
-                <div class="orbit-avatar-ring-inner" style="display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:var(--color-cyan-neon);">
-                  ${currentStream.profilePictureUrl
-                    ? `<img src="${currentStream.profilePictureUrl}" style="width:100%;height:100%;object-fit:cover;" />`
-                    : (currentStream.streamerName || 'S')[0].toUpperCase()
-                  }
-                </div>
-              </div>
+              ${renderSaturnAvatar({
+                src: currentStream.profilePictureUrl,
+                fallback: (currentStream.streamerName || 'S')[0].toUpperCase(),
+                size: 'lg'
+              })}
               <div>
-                <div style="font-weight:700;font-size:16px;color:#fff;display:flex;align-items:center;gap:6px;">
+                <div style="font-weight:700;font-size:16px;color:var(--color-text-white);display:flex;align-items:center;gap:6px;">
                   <span>${escapeHtml(currentStream.streamerName || 'Streamer')}</span>
                   <span style="color:var(--color-cyan-neon);">${Icons.checkCircle || '✓'}</span>
                 </div>
@@ -313,6 +312,27 @@ async function loadStreams() {
     }
 
     liveStreamsList = Array.isArray(streams) ? streams : [];
+
+    // Enrich live streams with authentic channel profile photos if missing
+    if (liveStreamsList.length > 0) {
+      const channelIds = [...new Set(liveStreamsList.map(s => s.channelId).filter(Boolean))];
+      await Promise.allSettled(channelIds.map(async (cid) => {
+        try {
+          const ch = await channelApi.getById(cid);
+          if (ch) {
+            const photo = ch.profilePhotoUrl || ch.ownerProfilePictureUrl || ch.profilePictureUrl;
+            liveStreamsList.forEach(s => {
+              if (s.channelId === cid) {
+                s.profilePictureUrl = s.profilePictureUrl || photo;
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('[HomeFeed] Could not load channel profile for', cid, e);
+        }
+      }));
+    }
+
     renderHero();
 
     if (!liveStreamsList.length) {
@@ -330,7 +350,7 @@ async function loadStreams() {
     }
 
     grid.innerHTML = liveStreamsList.map((s) => `
-      <div class="card stream-card hover-lift stagger-item" data-sid="${s.id}" style="cursor:pointer;">
+      <div class="card stream-card" data-sid="${s.id}" style="cursor:pointer;">
         <div class="stream-thumb" style="position:relative;aspect-ratio:16/9;background:#000;border-radius:12px 12px 0 0;overflow:hidden;">
           <img src="${DEFAULT_BANNER}" data-thumb-src="${s.thumbnailUrl || ''}" alt="${escapeHtml(s.title)}" style="width:100%;height:100%;object-fit:cover;" />
           <div style="position:absolute;top:10px;left:10px;display:flex;gap:6px;z-index:2;">
@@ -343,20 +363,20 @@ async function loadStreams() {
         </div>
         <div class="stream-info" style="padding:14px;">
           <div class="streamer-row" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-            <div class="orbit-avatar-ring" style="width:36px;height:36px;flex-shrink:0;">
-              <div class="orbit-avatar-ring-inner" style="display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:var(--color-cyan-neon);">
-                ${s.profilePictureUrl ? `<img src="${s.profilePictureUrl}" style="width:100%;height:100%;object-fit:cover;" />` : (s.streamerName || 'S')[0].toUpperCase()}
-              </div>
-            </div>
+            ${renderSaturnAvatar({
+              src: s.profilePictureUrl,
+              fallback: (s.streamerName || 'S')[0].toUpperCase(),
+              size: 'sm'
+            })}
             <div style="flex:1;overflow:hidden;">
-              <div class="streamer-name" style="font-size:13px;font-weight:700;color:#fff;display:flex;align-items:center;gap:4px;">
+              <div class="streamer-name" style="font-size:13px;font-weight:700;color:var(--color-text-primary);display:flex;align-items:center;gap:4px;">
                 <span>${escapeHtml(s.streamerName || 'Streamer')}</span>
                 <span style="color:var(--color-cyan-neon);font-size:11px;">${Icons.checkCircle || '✓'}</span>
               </div>
               <div style="font-size:11px;color:var(--color-cyan-primary);">${escapeHtml(s.categoryName || 'General')}</div>
             </div>
           </div>
-          <div class="stream-title" style="font-size:13px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          <div class="stream-title" style="font-size:13px;font-weight:600;color:var(--color-text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
             ${escapeHtml(s.title || 'Live Stream')}
           </div>
         </div>
@@ -390,8 +410,8 @@ async function loadCategories() {
     const cats = await categoryApi.getAll();
     if (!cats?.length) return;
     container.innerHTML = `
-      <button class="cat-pill ${!selectedCat ? 'active' : ''}" data-slug="all" style="padding:8px 18px;border-radius:20px;font-size:13px;font-weight:600;background:${!selectedCat ? 'var(--color-cyan-primary)' : 'var(--color-space-slate)'};color:${!selectedCat ? '#000' : '#fff'};border:1px solid var(--color-cyan-border);cursor:pointer;flex-shrink:0;">All</button>
-      ${cats.map(c => `<button class="cat-pill ${selectedCat === c.slug ? 'active' : ''}" data-slug="${c.slug}" style="padding:8px 18px;border-radius:20px;font-size:13px;font-weight:500;background:${selectedCat === c.slug ? 'var(--color-cyan-primary)' : 'var(--color-space-slate)'};color:${selectedCat === c.slug ? '#000' : '#fff'};border:1px solid var(--color-cyan-border);cursor:pointer;flex-shrink:0;">${escapeHtml(c.name)}</button>`).join('')}
+      <button class="cat-pill ${!selectedCat ? 'active' : ''}" data-slug="all" style="padding:8px 18px;border-radius:20px;font-size:13px;font-weight:600;background:${!selectedCat ? 'var(--color-cyan-primary)' : 'var(--color-space-slate)'};color:${!selectedCat ? '#000' : 'var(--color-text-white)'};border:1px solid var(--color-cyan-border);cursor:pointer;flex-shrink:0;">All</button>
+      ${cats.map(c => `<button class="cat-pill ${selectedCat === c.slug ? 'active' : ''}" data-slug="${c.slug}" style="padding:8px 18px;border-radius:20px;font-size:13px;font-weight:500;background:${selectedCat === c.slug ? 'var(--color-cyan-primary)' : 'var(--color-space-slate)'};color:${selectedCat === c.slug ? '#000' : 'var(--color-text-white)'};border:1px solid var(--color-cyan-border);cursor:pointer;flex-shrink:0;">${escapeHtml(c.name)}</button>`).join('')}
     `;
     container.querySelectorAll('.cat-pill').forEach(pill => {
       pill.addEventListener('click', () => {

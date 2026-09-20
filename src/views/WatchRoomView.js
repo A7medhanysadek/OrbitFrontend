@@ -6,7 +6,83 @@ import { chatApi } from '../api/chat.js';
 import { moderationApi } from '../api/moderation.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { API_BASE, getAuthToken, getCurrentUser } from '../api/client.js';
+import { OrbitEmotes, getEmoteSvg, getAllPresets } from '../components/OrbitEmotes.js';
 import * as signalR from '@microsoft/signalr';
+
+const EMOTE_SHORTCODES = {
+  ':hype:': 'orbitHype',
+  ':rocket:': 'orbitHype',
+  ':fire:': 'orbitFire',
+  ':flame:': 'orbitFire',
+  ':pog:': 'orbitPog',
+  ':poggers:': 'orbitPog',
+  ':love:': 'orbitLove',
+  ':heart:': 'orbitLove',
+  ':gg:': 'orbitGG',
+  ':trophy:': 'orbitGG',
+  ':lul:': 'orbitLUL',
+  ':lol:': 'orbitLUL',
+  ':sad:': 'orbitSad',
+  ':cry:': 'orbitSad',
+  ':crown:': 'orbitCrown',
+  ':king:': 'orbitCrown',
+  ':wave:': 'orbitWave',
+  ':hi:': 'orbitWave',
+  ':rage:': 'orbitRage',
+  ':mad:': 'orbitRage',
+  ':chill:': 'orbitChill',
+  ':cool:': 'orbitChill',
+  ':star:': 'orbitStar'
+};
+
+function parseChatContent(text) {
+  if (!text) return '';
+  let parsed = escapeHtml(text);
+  for (const [code, emoteKey] of Object.entries(EMOTE_SHORTCODES)) {
+    const svg = getEmoteSvg(emoteKey);
+    if (svg) {
+      const emoteHtml = `<span class="orbit-chat-emote" title="${code}" style="display:inline-flex;vertical-align:middle;width:22px;height:22px;margin:-2px 2px 0 2px;">${svg}</span>`;
+      parsed = parsed.replaceAll(code, emoteHtml);
+    }
+  }
+  return parsed;
+}
+
+function getRoleBadge(msg, senderName) {
+  const activeS = store.getState().activeStream;
+  const isBroadcaster = activeS && (
+    senderName === activeS.streamerName ||
+    senderName === activeS.channelName ||
+    senderName === activeS.channel?.ownerUsername
+  );
+  const badge = String(msg?.senderBadge || msg?.SenderBadge || '');
+  const role = String(msg?.senderRole || msg?.SenderRole || '').toLowerCase();
+
+  if (isBroadcaster || badge.includes('👑') || role === 'broadcaster' || role === 'streamer') {
+    return `<span class="chat-role-badge badge-broadcaster" title="Broadcaster" style="background:linear-gradient(135deg,#FFD700,#FFA500);color:#000;font-size:10px;font-weight:800;padding:2px 5px;border-radius:4px;display:inline-flex;align-items:center;gap:2px;box-shadow:0 0 6px rgba(255,215,0,0.5);margin-right:4px;">👑 HOST</span>`;
+  }
+  if (badge.includes('🛡️') || role === 'moderator' || role === 'mod') {
+    return `<span class="chat-role-badge badge-mod" title="Moderator" style="background:linear-gradient(135deg,#10B981,#059669);color:#fff;font-size:10px;font-weight:800;padding:2px 5px;border-radius:4px;display:inline-flex;align-items:center;gap:2px;box-shadow:0 0 6px rgba(16,185,129,0.4);margin-right:4px;">🛡️ MOD</span>`;
+  }
+  if (badge.includes('⚡') || role === 'admin') {
+    return `<span class="chat-role-badge badge-admin" title="Orbit Admin" style="background:linear-gradient(135deg,#7928CA,#4C1D95);color:#fff;font-size:10px;font-weight:800;padding:2px 5px;border-radius:4px;display:inline-flex;align-items:center;gap:2px;box-shadow:0 0 6px rgba(121,40,202,0.4);margin-right:4px;">⚡ ADMIN</span>`;
+  }
+  if (badge.includes('💎') || role === 'vip') {
+    return `<span class="chat-role-badge badge-vip" title="VIP" style="background:linear-gradient(135deg,#00f2fe,#00AEBD);color:#000;font-size:10px;font-weight:800;padding:2px 5px;border-radius:4px;display:inline-flex;align-items:center;gap:2px;box-shadow:0 0 6px rgba(0,242,254,0.4);margin-right:4px;">💎 VIP</span>`;
+  }
+  if (badge) {
+    return `<span style="font-size:11px;margin-right:4px;">${escapeHtml(badge)}</span>`;
+  }
+  return '';
+}
+
+function getSenderColor(isBroadcaster, role) {
+  const r = String(role || '').toLowerCase();
+  if (isBroadcaster) return '#FFD700';
+  if (r === 'moderator' || r === 'mod') return '#10B981';
+  if (r === 'admin') return '#c084fc';
+  return 'var(--color-cyan-neon, #00f2fe)';
+}
 
 let chatConnection = null;
 let activeHls = null;
@@ -102,7 +178,7 @@ function updateDvrTimeline() {
       const bufEnd = video.buffered.end(video.buffered.length - 1);
       const bufPct = Math.max(0, Math.min(100, ((bufEnd - seekStart) / duration) * 100));
       bufferedEl.style.width = `${bufPct}%`;
-    } catch (_) {}
+    } catch (_) { }
   }
 
   const diffFromLive = Math.round(seekEnd - current);
@@ -144,7 +220,7 @@ function jumpToLive() {
   if (!video || !video.seekable || video.seekable.length === 0) return;
   const seekEnd = video.seekable.end(0);
   video.currentTime = Math.max(0, seekEnd - 0.5);
-  video.play().catch(() => {});
+  video.play().catch(() => { });
   updateDvrTimeline();
   store.showToast('Synced to Live broadcast', 'info');
 }
@@ -279,7 +355,9 @@ export function renderWatchRoomView() {
           </div>
 
           <div id="watch-channel-info" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--color-space-panel);border-radius:var(--radius-card);border:1px solid rgba(0,174,189,0.12);cursor:pointer;">
-            <div style="width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--color-cyan-primary),var(--color-cyan-neon));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:#000;overflow:hidden;" id="watch-avatar">${(stream?.streamerName || 'S')[0].toUpperCase()}</div>
+            <div style="width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--color-cyan-primary),var(--color-cyan-neon));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:#000;overflow:hidden;flex-shrink:0;" id="watch-avatar">
+              ${(stream?.profilePictureUrl || stream?.channelPhotoUrl) ? `<img src="${stream.profilePictureUrl || stream.channelPhotoUrl}" style="width:100%;height:100%;object-fit:cover;" />` : (stream?.streamerName || stream?.channelName || 'S')[0].toUpperCase()}
+            </div>
             <div style="flex:1;overflow:hidden;">
               <div style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:6px;" id="watch-streamer">
                 <span>${escapeHtml(stream?.streamerName || 'Streamer')}</span> ${Icons.checkCircle}
@@ -290,27 +368,75 @@ export function renderWatchRoomView() {
         </div>
       </div>
 
-      <!-- Chat Panel -->
+      <!-- Enhanced Kick/Twitch Style Stream Chat Panel -->
       <div class="chat-panel" style="width:var(--chat-width, 340px);flex-shrink:0;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,0.08);background:var(--color-space-panel, #0f1424);height:calc(100vh - var(--topbar-height));position:relative;">
-        <div class="chat-header" style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.08);">
-          <div style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:#fff;">
+        <div class="chat-header" style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.08);background:rgba(4,7,18,0.4);">
+          <div style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:var(--color-text-primary,#fff);">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--color-cyan-neon);box-shadow:0 0 8px var(--color-cyan-neon);"></span>
             <span>Stream Chat</span>
           </div>
           <span style="font-size:11px;font-weight:600;color:var(--color-text-muted);" id="chat-status">Connecting...</span>
         </div>
 
-        <div class="chat-messages" id="chat-messages" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:6px;scroll-behavior:smooth;"></div>
+        <div class="chat-messages" id="chat-messages" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:4px;scroll-behavior:smooth;">
+          <div class="chat-guidelines-banner" style="background:rgba(0,242,254,0.06);border:1px solid rgba(0,242,254,0.18);border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:12px;color:var(--color-text-muted);display:flex;align-items:flex-start;gap:8px;">
+            <span style="font-size:16px;">🚀</span>
+            <div style="flex:1;line-height:1.4;">
+              <strong style="color:var(--color-text-primary,#fff);display:block;margin-bottom:2px;font-size:12px;">Welcome to Orbit Chat!</strong>
+              Be respectful, support the broadcaster, and have fun.
+            </div>
+          </div>
+        </div>
 
         <!-- Floating scroll-to-bottom indicator -->
-        <button id="chat-scroll-bottom" style="display:none;position:absolute;bottom:70px;left:50%;transform:translateX(-50%);background:rgba(0,242,254,0.9);color:#000;font-size:11px;font-weight:700;border:none;border-radius:20px;padding:4px 12px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:5;">
-          &darr; New Messages
+        <button id="chat-scroll-bottom" style="display:none;position:absolute;bottom:110px;left:50%;transform:translateX(-50%);background:rgba(0,242,254,0.95);color:#000;font-size:11px;font-weight:700;border:none;border-radius:20px;padding:5px 14px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.6);z-index:10;">
+          ↓ New Messages
         </button>
 
-        <div class="chat-input-area" style="padding:12px;border-top:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.2);">
+        <!-- Quick Reactions Bar -->
+        <div class="chat-quick-reactions" id="chat-quick-reactions" style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(0,0,0,0.25);border-top:1px solid rgba(255,255,255,0.06);overflow-x:auto;">
+          <span style="font-size:10px;font-weight:700;color:var(--color-text-muted);letter-spacing:0.04em;text-transform:uppercase;margin-right:2px;white-space:nowrap;">React:</span>
+          <button class="chat-quick-pill" data-emote=":hype:" title="Hype Rocket (:hype:)" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;background:rgba(0,242,254,0.08);border:1px solid rgba(0,242,254,0.25);color:var(--color-cyan-neon);font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;transition:all 0.15s;">
+            <span style="width:16px;height:16px;display:inline-flex;">${getEmoteSvg('orbitHype')}</span> Hype
+          </button>
+          <button class="chat-quick-pill" data-emote=":fire:" title="Cosmic Flame (:fire:)" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;background:rgba(255,107,53,0.08);border:1px solid rgba(255,107,53,0.25);color:#FF6B35;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;transition:all 0.15s;">
+            <span style="width:16px;height:16px;display:inline-flex;">${getEmoteSvg('orbitFire')}</span> Fire
+          </button>
+          <button class="chat-quick-pill" data-emote=":pog:" title="Amazed Planet (:pog:)" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;background:rgba(0,174,189,0.08);border:1px solid rgba(0,174,189,0.25);color:#00AEBD;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;transition:all 0.15s;">
+            <span style="width:16px;height:16px;display:inline-flex;">${getEmoteSvg('orbitPog')}</span> Pog
+          </button>
+          <button class="chat-quick-pill" data-emote=":gg:" title="Star Trophy (:gg:)" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;background:rgba(255,217,61,0.08);border:1px solid rgba(255,217,61,0.25);color:#FFD93D;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;transition:all 0.15s;">
+            <span style="width:16px;height:16px;display:inline-flex;">${getEmoteSvg('orbitGG')}</span> GG
+          </button>
+          <button class="chat-quick-pill" data-emote=":love:" title="Nebula Heart (:love:)" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;background:rgba(255,105,180,0.08);border:1px solid rgba(255,105,180,0.25);color:#FF69B4;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;transition:all 0.15s;">
+            <span style="width:16px;height:16px;display:inline-flex;">${getEmoteSvg('orbitLove')}</span> Love
+          </button>
+        </div>
+
+        <!-- Emote Picker Popover -->
+        <div id="chat-emote-picker" style="display:none;position:absolute;bottom:100px;right:12px;left:12px;background:rgba(12,16,28,0.96);border:1px solid rgba(0,242,254,0.3);border-radius:10px;padding:12px;box-shadow:0 12px 36px rgba(0,0,0,0.6);backdrop-filter:blur(16px);z-index:20;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <span style="font-size:12px;font-weight:700;color:var(--color-cyan-neon);">Custom Orbit Emotes</span>
+            <button id="chat-emote-picker-close" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:14px;">✕</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:8px;max-height:160px;overflow-y:auto;padding:4px;">
+            ${getAllPresets().map(em => `
+              <button class="chat-emote-select-btn" data-code=":${em.name.replace('orbit','').toLowerCase()}:" title="${em.label} (:${em.name.replace('orbit','').toLowerCase()}:)" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px 4px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);cursor:pointer;transition:all 0.15s;">
+                <span style="width:28px;height:28px;display:inline-flex;">${em.svg}</span>
+                <span style="font-size:10px;color:var(--color-text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;">${em.label}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="chat-input-area" style="padding:10px 12px;border-top:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.25);">
           ${currentUser ? `
-            <div style="display:flex;gap:8px;">
-              <input type="text" id="chat-input" placeholder="Send a message..." maxlength="500" class="input-dark" style="flex:1;height:38px;padding:0 12px;font-size:13px;border-radius:8px;" />
-              <button id="chat-send" class="btn btn-cyan btn-sm" style="height:38px;padding:0 14px;border-radius:8px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="text" id="chat-input" placeholder="Say something... (:hype:, :fire:)" maxlength="500" class="input-dark" style="flex:1;height:38px;padding:0 12px;font-size:13px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);" />
+              <button id="chat-emote-btn" type="button" title="Orbit Emotes" style="width:38px;height:38px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--color-cyan-neon);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;transition:all 0.15s;flex-shrink:0;">
+                😊
+              </button>
+              <button id="chat-send" class="btn btn-cyan btn-sm" style="height:38px;padding:0 14px;border-radius:8px;flex-shrink:0;">
                 ${Icons.send}
               </button>
             </div>
@@ -332,8 +458,8 @@ export function setupWatchRoomEvents() {
 
   // Cleanup old connections & timers if switching rooms
   if (chatConnection) {
-    if (currentStreamId) chatConnection.invoke('LeaveStream', currentStreamId).catch(() => {});
-    chatConnection.stop().catch(() => {});
+    if (currentStreamId) chatConnection.invoke('LeaveStream', currentStreamId).catch(() => { });
+    chatConnection.stop().catch(() => { });
     chatConnection = null;
   }
   if (activeHls) {
@@ -360,6 +486,21 @@ export function setupWatchRoomEvents() {
     initPlayer(s);
     initChat(s.channelId, s.id);
     setupFollowBtn(s);
+
+    if (s.channelId) {
+      channelApi.getById(s.channelId).then(ch => {
+        if (!ch) return;
+        const photo = ch.profilePhotoUrl || ch.ownerProfilePictureUrl;
+        const avatarEl = document.getElementById('watch-avatar');
+        if (avatarEl && photo && photo.startsWith('http')) {
+          avatarEl.innerHTML = `<img src="${photo}" style="width:100%;height:100%;object-fit:cover;" />`;
+        }
+        const descEl = document.getElementById('watch-desc');
+        if (descEl && ch.description) {
+          descEl.textContent = ch.description;
+        }
+      }).catch(err => console.warn('Could not load channel details for watch room:', err));
+    }
   };
 
   if (streamId) {
@@ -417,7 +558,7 @@ export function setupWatchRoomEvents() {
       if (playerControlsState.isYt) {
         sendYtCommand('playVideo');
       } else if (videoEl) {
-        videoEl.play().catch(() => {});
+        videoEl.play().catch(() => { });
       }
       playerControlsState.isPlaying = true;
     }
@@ -481,9 +622,9 @@ export function setupWatchRoomEvents() {
 
   fsBtn?.addEventListener('click', () => {
     if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
     } else if (playerContainer) {
-      playerContainer.requestFullscreen().catch(() => {});
+      playerContainer.requestFullscreen().catch(() => { });
     }
   });
 
@@ -511,7 +652,7 @@ export function setupWatchRoomEvents() {
   const pipBtn = document.getElementById('orbit-ctrl-pip');
   const togglePip = async () => {
     if (document.pictureInPictureElement) {
-      document.exitPictureInPicture().catch(() => {});
+      document.exitPictureInPicture().catch(() => { });
     } else if (videoEl && videoEl.requestPictureInPicture) {
       try {
         await videoEl.requestPictureInPicture();
@@ -671,6 +812,62 @@ export function setupWatchRoomEvents() {
     chatSend.addEventListener('click', sendMsg);
     chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendMsg(); });
   }
+
+  // Quick Reaction Buttons (:hype:, :fire:, :pog:, :gg:, :love:)
+  document.querySelectorAll('.chat-quick-pill').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const emoteCode = btn.dataset.emote;
+      const user = getCurrentUser();
+      if (!user) {
+        store.showToast('Please log in to chat', 'info');
+        store.navigate('login');
+        return;
+      }
+      const sid = currentStreamId || parseInt(streamId);
+      if (chatConnection && sid && emoteCode) {
+        try {
+          await chatConnection.invoke('SendMessage', sid, emoteCode);
+        } catch (e) {
+          store.showToast(e.message || 'Failed to send reaction', 'error');
+        }
+      }
+    });
+  });
+
+  // Emote Picker Popover wiring
+  const emoteBtn = document.getElementById('chat-emote-btn');
+  const emotePicker = document.getElementById('chat-emote-picker');
+  const emotePickerClose = document.getElementById('chat-emote-picker-close');
+
+  if (emoteBtn && emotePicker) {
+    emoteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = emotePicker.style.display === 'none' || !emotePicker.style.display;
+      emotePicker.style.display = isHidden ? 'block' : 'none';
+    });
+    emotePickerClose?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      emotePicker.style.display = 'none';
+    });
+    document.addEventListener('click', (e) => {
+      if (emotePicker && !emotePicker.contains(e.target) && e.target !== emoteBtn) {
+        emotePicker.style.display = 'none';
+      }
+    });
+
+    document.querySelectorAll('.chat-emote-select-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const code = btn.dataset.code;
+        if (chatInput && code) {
+          const val = chatInput.value ? chatInput.value.trim() : '';
+          chatInput.value = val ? `${val} ${code} ` : `${code} `;
+          chatInput.focus();
+        }
+        emotePicker.style.display = 'none';
+      });
+    });
+  }
 }
 
 function setupFollowBtn(stream) {
@@ -705,10 +902,11 @@ function updateStreamUI(stream) {
 
   const avatarEl = document.getElementById('watch-avatar');
   if (avatarEl) {
-    if (stream.thumbnailUrl && stream.thumbnailUrl.startsWith('http')) {
-      avatarEl.innerHTML = `<img src="${stream.thumbnailUrl}" style="width:100%;height:100%;object-fit:cover;" />`;
+    const avatarPic = stream.profilePictureUrl || stream.channelPhotoUrl || stream.profilePhotoUrl;
+    if (avatarPic && avatarPic.startsWith('http')) {
+      avatarEl.innerHTML = `<img src="${avatarPic}" style="width:100%;height:100%;object-fit:cover;" />`;
     } else {
-      avatarEl.textContent = (stream.streamerName || 'S')[0].toUpperCase();
+      avatarEl.textContent = (stream.streamerName || stream.channelName || 'S')[0].toUpperCase();
     }
   }
 }
@@ -745,7 +943,7 @@ async function initPlayer(stream) {
             updateStreamUI(fresh);
             initPlayer(fresh);
           }
-        } catch (_) {}
+        } catch (_) { }
       }, 3000);
     }
     return;
@@ -900,7 +1098,7 @@ async function initPlayer(stream) {
       video.src = hlsSource;
       video.addEventListener('loadedmetadata', () => {
         offlineEl?.classList.add('hidden');
-        video.play().catch(() => {});
+        video.play().catch(() => { });
       });
     }
   } catch (e) {
@@ -1133,23 +1331,32 @@ async function initChat(channelId, streamId) {
 
 function createMessageHtml(msg, isModOrStreamer) {
   const sender = msg.senderName || msg.SenderName || msg.username || 'Viewer';
-  const badge = msg.senderBadge || msg.SenderBadge;
   const content = msg.content || msg.Content || '';
   const mid = msg.id || msg.Id;
   const sentAt = msg.sentAt || msg.SentAt;
   const timeStr = sentAt ? new Date(sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const parsedContent = parseChatContent(content);
+
+  const activeS = store.getState().activeStream;
+  const isBroadcaster = activeS && (
+    sender === activeS.streamerName ||
+    sender === activeS.channelName ||
+    sender === activeS.channel?.ownerUsername
+  );
+  const roleBadge = getRoleBadge(msg, sender);
+  const senderColor = getSenderColor(isBroadcaster, msg.senderRole || msg.SenderRole);
 
   return `
-    <div class="chat-msg chat-msg-animate" data-msg-id="${mid || ''}" style="display:flex;align-items:flex-start;justify-content:space-between;padding:4px 6px;border-radius:6px;gap:6px;">
-      <div style="flex:1;word-break:break-word;font-size:13px;line-height:1.4;">
-        <span style="font-size:10px;color:var(--color-text-muted);margin-right:4px;opacity:0.6;">${timeStr}</span>
-        ${badge ? `<span style="font-size:12px;margin-right:4px;">${badge}</span>` : ''}
-        <span class="chat-user" style="font-weight:700;color:var(--color-cyan-neon,#00f2fe);margin-right:4px;">${escapeHtml(sender)}:</span>
-        <span class="chat-text" style="color:var(--color-text,#fff);">${escapeHtml(content)}</span>
+    <div class="chat-msg chat-msg-animate" data-msg-id="${mid || ''}" style="display:flex;align-items:flex-start;justify-content:space-between;padding:5px 8px;border-radius:6px;gap:6px;transition:background 0.15s ease;">
+      <div style="flex:1;word-break:break-word;font-size:13px;line-height:1.5;">
+        <span style="font-size:10px;color:var(--color-text-muted);margin-right:4px;opacity:0.65;font-variant-numeric:tabular-nums;">${timeStr}</span>
+        ${roleBadge}
+        <span class="chat-user" style="font-weight:700;color:${senderColor};margin-right:5px;cursor:pointer;">${escapeHtml(sender)}:</span>
+        <span class="chat-text" style="color:var(--color-text-primary,#e2e8f0);">${parsedContent}</span>
       </div>
       ${isModOrStreamer && mid ? `
-        <div class="chat-msg-actions" style="display:flex;gap:2px;opacity:0.4;transition:opacity 0.2s;" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0.4">
-          <button class="btn btn-ghost btn-del-msg" data-msg-id="${mid}" title="Delete" style="padding:2px 4px;font-size:10px;color:#ef4444;border:none;background:none;cursor:pointer;">
+        <div class="chat-msg-actions" style="display:flex;gap:2px;opacity:0.35;transition:opacity 0.2s;flex-shrink:0;" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0.35">
+          <button class="btn btn-ghost btn-del-msg" data-msg-id="${mid}" title="Delete Message" style="padding:2px 4px;font-size:10px;color:#ef4444;border:none;background:none;cursor:pointer;">
             ${Icons.trash}
           </button>
           <button class="btn btn-ghost btn-timeout-user" data-username="${escapeHtml(sender)}" title="Timeout (5m)" style="padding:2px 4px;font-size:10px;color:#f59e0b;border:none;background:none;cursor:pointer;">

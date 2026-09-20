@@ -231,16 +231,42 @@ async function loadChannel(channelId) {
 
           if (isYouTube && heroWrapper) {
             if (video) video.style.display = 'none';
+            if (unmuteBtn) unmuteBtn.style.display = 'none';
+            if (fullscreenBtn) fullscreenBtn.style.display = 'none';
+
             let ytId = 'live_stream';
             const ytMatch = (activeStream.recordingFileName || activeStream.hlsUrl || '').match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
             if (ytMatch) ytId = ytMatch[1];
 
+            // Embed with controls disabled, modesty enabled, and cropped out headers/watermarks
             const ytFrame = document.createElement('iframe');
-            ytFrame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:none;';
-            ytFrame.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&controls=1&modestbranding=1`;
+            ytFrame.style.cssText = 'position:absolute;top:-60px;left:0;width:100%;height:calc(100% + 120px);border:none;pointer-events:none;';
+            ytFrame.src = `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1`;
             ytFrame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-            ytFrame.allowFullscreen = true;
             heroWrapper.appendChild(ytFrame);
+
+            // Clean click-to-watch overlay without any YouTube options or menus
+            const ytOverlay = document.createElement('div');
+            ytOverlay.style.cssText = 'position:absolute;inset:0;z-index:3;cursor:pointer;display:flex;align-items:flex-end;padding:24px;background:linear-gradient(to top, rgba(4,7,18,0.75) 0%, transparent 50%);transition:background 0.2s ease;';
+            ytOverlay.innerHTML = `
+              <div style="display:flex;align-items:center;gap:12px;">
+                <button class="btn btn-cyan btn-sm" style="display:inline-flex;align-items:center;gap:8px;font-weight:700;box-shadow:0 0 16px rgba(0,242,254,0.35);">
+                  ${Icons.play} Enter Watch Room & Chat
+                </button>
+                <span style="font-size:12px;color:rgba(255,255,255,0.8);font-weight:500;">Click anywhere to watch live broadcast</span>
+              </div>
+            `;
+            ytOverlay.addEventListener('mouseenter', () => {
+              ytOverlay.style.background = 'linear-gradient(to top, rgba(4,7,18,0.85) 0%, rgba(0,242,254,0.06) 50%, transparent 100%)';
+            });
+            ytOverlay.addEventListener('mouseleave', () => {
+              ytOverlay.style.background = 'linear-gradient(to top, rgba(4,7,18,0.75) 0%, transparent 50%)';
+            });
+            ytOverlay.addEventListener('click', () => {
+              store.setActiveStream(activeStream);
+              store.navigate('watch', { streamId: activeStream.id });
+            });
+            heroWrapper.appendChild(ytOverlay);
           } else if (video) {
             video.style.display = 'block';
             let hlsSource = activeStream.hlsUrl || `${resolveMediaUrl(activeStream.hlsUrl || '')}`;

@@ -5,7 +5,7 @@
 import { resolveMediaUrl } from './mediaConfig.js';
 
 export const BASE_PATH = import.meta.env.BASE_URL || './';
-export const ORBIT_LOGO = BASE_PATH.endsWith('/') ? `${BASE_PATH}Orbit_logo.png` : `${BASE_PATH}/Orbit_logo.png`;
+export const ORBIT_LOGO = BASE_PATH.endsWith('/') ? `${BASE_PATH}orbit-logo-blue.png` : `${BASE_PATH}/orbit-logo-blue.png`;
 export const DEFAULT_BANNER = BASE_PATH.endsWith('/') ? `${BASE_PATH}cosmic_orbit_banner.png` : `${BASE_PATH}/cosmic_orbit_banner.png`;
 
 const blobCache = new Map();

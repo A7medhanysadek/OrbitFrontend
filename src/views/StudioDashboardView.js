@@ -6,6 +6,7 @@ import { categoryApi } from '../api/category.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { openVodPlayerModal } from '../components/VodPlayerModal.js';
 import { openImageCropperModal } from '../components/ImageCropperModal.js';
+import { OrbitEmotes, getEmoteSvg, getAllPresets } from '../components/OrbitEmotes.js';
 
 let studioTab = 'overview';
 let channelSubTab = 'profile';
@@ -77,13 +78,13 @@ export function renderStudioDashboardView() {
 
       <!-- Navigation Tabs (Horizontal Admin Sync) -->
       <div class="tabs">
-        <button class="tab-btn ${studioTab==='overview'?'active':''}" data-studio-tab="overview">${Icons.grid} Overview</button>
-        <button class="tab-btn ${studioTab==='broadcast'?'active':''}" data-studio-tab="broadcast"><span style="color:var(--color-live-red);">&#9679;</span> Stream Manager</button>
-        <button class="tab-btn ${studioTab==='channel'?'active':''}" data-studio-tab="channel">${Icons.user} Channel Setup</button>
-        <button class="tab-btn ${studioTab==='analytics'?'active':''}" data-studio-tab="analytics">${Icons.chart || '📊'} Analytics &amp; Insights</button>
-        <button class="tab-btn ${studioTab==='vods'?'active':''}" data-studio-tab="vods">${Icons.video} Broadcast Archive</button>
-        <button class="tab-btn ${studioTab==='moderation'?'active':''}" data-studio-tab="moderation">${Icons.shield || '🛡️'} Moderation</button>
-        <button class="tab-btn ${studioTab==='emotes'?'active':''}" data-studio-tab="emotes">${Icons.emoji || '😀'} Emotes &amp; Badges</button>
+        <button class="tab-btn ${studioTab === 'overview' ? 'active' : ''}" data-studio-tab="overview">${Icons.grid} Overview</button>
+        <button class="tab-btn ${studioTab === 'broadcast' ? 'active' : ''}" data-studio-tab="broadcast"><span style="color:var(--color-live-red);">&#9679;</span> Stream Manager</button>
+        <button class="tab-btn ${studioTab === 'channel' ? 'active' : ''}" data-studio-tab="channel">${Icons.user} Channel Setup</button>
+        <button class="tab-btn ${studioTab === 'analytics' ? 'active' : ''}" data-studio-tab="analytics">${Icons.chart || '📊'} Analytics &amp; Insights</button>
+        <button class="tab-btn ${studioTab === 'vods' ? 'active' : ''}" data-studio-tab="vods">${Icons.video} Broadcast Archive</button>
+        <button class="tab-btn ${studioTab === 'moderation' ? 'active' : ''}" data-studio-tab="moderation">${Icons.shield || '🛡️'} Moderation</button>
+        <button class="tab-btn ${studioTab === 'emotes' ? 'active' : ''}" data-studio-tab="emotes">${Icons.emoji || '😀'} Emotes &amp; Badges</button>
       </div>
 
       <!-- Active Tab Container -->
@@ -172,7 +173,7 @@ async function renderWorkspace() {
     return;
   }
 
-  switch(studioTab) {
+  switch (studioTab) {
     case 'overview': await renderOverview(ws); break;
     case 'broadcast': await renderBroadcast(ws); break;
     case 'channel': renderChannelSetup(ws); break;
@@ -216,32 +217,32 @@ async function renderOverview(ws) {
 
       <!-- Lifetime Numerical KPI Cards -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:28px;">
-        <div class="stat-card animate-fade-up">
+        <div class="stat-card animate-stat-in">
           <div class="stat-label">Total Streams</div>
           <div class="stat-value">${stats.totalStreams || 0}</div>
           <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">Completed broadcasts</div>
         </div>
-        <div class="stat-card animate-fade-up" style="animation-delay:0.05s;">
+        <div class="stat-card animate-stat-in" style="animation-delay:0.05s;">
           <div class="stat-label">All-Time Peak Viewers</div>
           <div class="stat-value" style="color:var(--color-live-red);">${stats.allTimePeakViewers || 0}</div>
           <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">Highest concurrent audience</div>
         </div>
-        <div class="stat-card animate-fade-up" style="animation-delay:0.1s;">
+        <div class="stat-card animate-stat-in" style="animation-delay:0.1s;">
           <div class="stat-label">Average Peak Viewers</div>
           <div class="stat-value" style="color:var(--color-cyan-primary);">${stats.averagePeakViewers ? stats.averagePeakViewers.toFixed(1) : 0}</div>
           <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">Per stream session average</div>
         </div>
-        <div class="stat-card animate-fade-up" style="animation-delay:0.15s;">
+        <div class="stat-card animate-stat-in" style="animation-delay:0.15s;">
           <div class="stat-label">Total Broadcast Time</div>
           <div class="stat-value">${stats.totalBroadcastHours || '0h'}</div>
           <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">Avg duration: ${stats.averageStreamDurationFormatted || '0m'}</div>
         </div>
-        <div class="stat-card animate-fade-up" style="animation-delay:0.2s;">
+        <div class="stat-card animate-stat-in" style="animation-delay:0.2s;">
           <div class="stat-label">Total Chat Messages</div>
           <div class="stat-value" style="color:var(--color-cyan-neon);">${stats.totalChatMessages || 0}</div>
           <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">${stats.uniqueChattersCount || 0} unique chatters</div>
         </div>
-        <div class="stat-card animate-fade-up" style="animation-delay:0.25s;">
+        <div class="stat-card animate-stat-in" style="animation-delay:0.25s;">
           <div class="stat-label">Total Clips Created</div>
           <div class="stat-value">${stats.totalClipsCount || 0}</div>
           <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">${stats.totalClipViews || 0} total clip views</div>
@@ -265,7 +266,7 @@ async function renderOverview(ws) {
             <div style="font-size:12px;font-weight:700;color:var(--color-cyan-primary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">Channel Identity</div>
             <div style="display:flex;align-items:center;gap:14px;">
               <div style="width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#00AEBD,#00DDEE);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px;color:#000;overflow:hidden;flex-shrink:0;">
-                ${ch.profilePhotoUrl ? `<img src="${ch.profilePhotoUrl}" style="width:100%;height:100%;object-fit:cover;" />` : (ch.name||ch.channelName||'C')[0].toUpperCase()}
+                ${ch.profilePhotoUrl ? `<img src="${ch.profilePhotoUrl}" style="width:100%;height:100%;object-fit:cover;" />` : (ch.name || ch.channelName || 'C')[0].toUpperCase()}
               </div>
               <div>
                 <div style="font-weight:700;font-size:16px;color:#fff;">${escapeHtml(ch.name || ch.channelName || 'Your Channel')}</div>
@@ -1086,8 +1087,8 @@ async function renderAnalytics(ws) {
     const totalVodSeconds = validVodStreams.length > 0
       ? validVodStreams.reduce((acc, s) => acc + (s.durationSeconds || 0), 0)
       : (summary.lifetimeStats?.totalBroadcastSeconds && summary.lifetimeStats.totalBroadcastSeconds < 86400 * 5
-          ? summary.lifetimeStats.totalBroadcastSeconds
-          : 0);
+        ? summary.lifetimeStats.totalBroadcastSeconds
+        : 0);
 
     const effectiveBroadcastHours = totalVodSeconds > 0
       ? `${(totalVodSeconds / 3600).toFixed(1)} hrs`
@@ -1098,8 +1099,8 @@ async function renderAnalytics(ws) {
     const effectiveAvgPeak = stats.averagePeakViewers && stats.averagePeakViewers > 0
       ? stats.averagePeakViewers.toFixed(1)
       : (pastPeaks.length > 0
-          ? (pastPeaks.reduce((a, b) => a + b, 0) / pastPeaks.length).toFixed(1)
-          : (effectiveAllTimePeak > 0 ? effectiveAllTimePeak.toFixed(1) : '0.0'));
+        ? (pastPeaks.reduce((a, b) => a + b, 0) / pastPeaks.length).toFixed(1)
+        : (effectiveAllTimePeak > 0 ? effectiveAllTimePeak.toFixed(1) : '0.0'));
 
     ws.innerHTML = `
       <div style="margin-bottom:24px;">
@@ -1393,8 +1394,11 @@ async function renderEmotes(ws) {
     ws.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
         <div>
-          <h2 style="font-family:var(--font-display);color:var(--color-cyan-neon);margin:0 0 4px 0;">${Icons.emoji || '😀'} Emotes &amp; Badges Studio</h2>
-          <p style="color:var(--color-text-muted);font-size:14px;margin:0;">Configure custom emojis for your channel chat and view celestial role badges.</p>
+          <h2 style="font-family:var(--font-display);color:var(--color-cyan-neon);margin:0 0 4px 0;display:flex;align-items:center;gap:10px;">
+            <span style="width:28px;height:28px;display:inline-flex;">${getEmoteSvg('orbitPog')}</span>
+            Emotes &amp; Badges Studio
+          </h2>
+          <p style="color:var(--color-text-muted);font-size:14px;margin:0;">Configure custom emotes for your channel chat and view celestial role badges.</p>
         </div>
         <button id="save-emojis-server-btn" class="btn btn-cyan btn-sm" style="padding:8px 20px;">
           ${Icons.check || '✓'} Save All Emotes (${customEmojis.length}/50)
@@ -1402,14 +1406,15 @@ async function renderEmotes(ws) {
       </div>
 
       <!-- Add New Custom Emote Card -->
-      <div class="card" style="padding:24px;margin-bottom:24px;border-color:rgba(0,242,254,0.2);">
+      <div class="card" style="padding:24px;margin-bottom:24px;border-color:rgba(0,242,254,0.2);position:relative;overflow:hidden;">
+        <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:radial-gradient(circle,rgba(0,242,254,0.06),transparent 70%);pointer-events:none;"></div>
         <h4 style="color:#fff;font-size:15px;font-weight:700;margin:0 0 14px;display:flex;align-items:center;gap:8px;">
           ${Icons.plus || '+'} Add New Custom Emote
         </h4>
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:16px;align-items:end;">
           <div class="form-group">
             <label style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:4px;display:block;">
-              Emote Shortcode (e.g. <code>orbitPog</code>)
+              Emote Shortcode (e.g. <code style="color:var(--color-cyan-neon);">orbitPog</code>)
             </label>
             <input class="input-dark" id="new-emote-name" placeholder="orbitPog (alphanumeric)" style="width:100%;" />
           </div>
@@ -1419,7 +1424,7 @@ async function renderEmotes(ws) {
             </label>
             <div class="emote-type-toggle-group" style="display:inline-flex;width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:3px;gap:4px;">
               <button type="button" id="toggle-type-unicode" class="emote-toggle-btn active" style="flex:1;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,rgba(0,174,189,0.3),rgba(0,221,238,0.2));color:#fff;box-shadow:0 0 10px rgba(0,174,189,0.3);transition:all 0.2s ease;">
-                <span>🔤</span> Unicode Emoji
+                <span style="width:16px;height:16px;display:inline-flex;">${getEmoteSvg('orbitStar')}</span> Orbit Emote
               </button>
               <button type="button" id="toggle-type-image" class="emote-toggle-btn" style="flex:1;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;background:transparent;color:var(--color-text-muted);transition:all 0.2s ease;">
                 <span>🖼️</span> Custom Image
@@ -1430,9 +1435,9 @@ async function renderEmotes(ws) {
           </div>
           <div class="form-group" id="emote-input-container">
             <label style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:4px;display:block;">
-              Emoji Character
+              Emote Character / SVG
             </label>
-            <input class="input-dark" id="new-emote-val" placeholder="Paste emoji e.g. 🚀, 🔥, 👾" style="width:100%;font-size:18px;" />
+            <input class="input-dark" id="new-emote-val" placeholder="Paste emoji or pick from presets below" style="width:100%;font-size:18px;" />
           </div>
           <div>
             <button id="add-emote-btn" class="btn btn-cyan btn-sm btn-full" style="height:42px;">
@@ -1441,24 +1446,32 @@ async function renderEmotes(ws) {
           </div>
         </div>
 
-        <!-- Quick Cosmic Emote Presets -->
-        <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <span style="font-size:12px;color:var(--color-text-muted);">Quick Presets:</span>
-          <button class="btn btn-ghost btn-sm preset-btn" data-name="orbitHype" data-val="🚀">🚀 :orbitHype:</button>
-          <button class="btn btn-ghost btn-sm preset-btn" data-name="orbitFire" data-val="🔥">🔥 :orbitFire:</button>
-          <button class="btn btn-ghost btn-sm preset-btn" data-name="orbitAlien" data-val="👾">👾 :orbitAlien:</button>
-          <button class="btn btn-ghost btn-sm preset-btn" data-name="orbitLove" data-val="💙">💙 :orbitLove:</button>
-          <button class="btn btn-ghost btn-sm preset-btn" data-name="orbitCrown" data-val="👑">👑 :orbitCrown:</button>
+        <!-- Orbit Custom Emote Presets -->
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span style="width:18px;height:18px;display:inline-flex;">${getEmoteSvg('orbitHype')}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--color-cyan-neon);">Orbit Exclusive Presets</span>
+            <span style="font-size:11px;color:var(--color-text-muted);">(Click to add)</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;" id="orbit-presets-container">
+            ${getAllPresets().map(e => `
+              <button class="orbit-preset-btn preset-btn" data-name="${e.name}" data-val="orbit:${e.name}" title=":${e.name}:">
+                <span style="width:20px;height:20px;display:inline-flex;">${e.svg}</span>
+                <span>:${e.name}:</span>
+              </button>
+            `).join('')}
+          </div>
         </div>
       </div>
 
       <!-- Channel Custom Emotes Gallery -->
       <div class="card" style="padding:24px;margin-bottom:24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <h4 style="color:#fff;font-size:15px;font-weight:700;margin:0;">
+          <h4 style="color:#fff;font-size:15px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+            <span style="width:20px;height:20px;display:inline-flex;">${getEmoteSvg('orbitCrown')}</span>
             Active Channel Emotes (<span id="emotes-count">${customEmojis.length}</span>/50)
           </h4>
-          <span style="font-size:12px;color:var(--color-text-muted);">Type <code>:name:</code> in stream chat to use</span>
+          <span style="font-size:12px;color:var(--color-text-muted);">Type <code style="color:var(--color-cyan-neon);">:name:</code> in stream chat to use</span>
         </div>
         <div id="emotes-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:14px;">
           <!-- Rendered dynamically -->
@@ -1467,26 +1480,35 @@ async function renderEmotes(ws) {
 
       <!-- Platform Role Badges -->
       <div class="card" style="padding:24px;">
-        <h4 style="color:#fff;font-size:15px;font-weight:700;margin:0 0 16px;">Cosmic Role Badges</h4>
+        <h4 style="color:#fff;font-size:15px;font-weight:700;margin:0 0 16px;display:flex;align-items:center;gap:8px;">
+          <span style="width:20px;height:20px;display:inline-flex;">${getEmoteSvg('orbitGG')}</span>
+          Cosmic Role Badges
+        </h4>
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;">
-          <div style="background:rgba(255,255,255,0.03);padding:16px;border-radius:10px;display:flex;align-items:center;gap:12px;">
-            <span style="font-size:32px;">${badges?.owner?.emoji || '🌍'}</span>
+          <div class="orbit-badge-card">
+            <div class="badge-icon" style="background:linear-gradient(135deg,rgba(0,174,189,0.15),rgba(0,242,254,0.1));">
+              <span style="width:28px;height:28px;display:inline-flex;">${getEmoteSvg('orbitStar')}</span>
+            </div>
             <div>
-              <strong style="color:var(--color-cyan-primary);">${badges?.owner?.role || 'Channel Owner'}</strong>
+              <strong style="color:var(--color-cyan-primary);font-size:14px;">${badges?.owner?.role || 'Channel Owner'}</strong>
               <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">Earth — Creator of the channel</div>
             </div>
           </div>
-          <div style="background:rgba(255,255,255,0.03);padding:16px;border-radius:10px;display:flex;align-items:center;gap:12px;">
-            <span style="font-size:32px;">${badges?.moderator?.emoji || '🪐'}</span>
+          <div class="orbit-badge-card">
+            <div class="badge-icon" style="background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(52,211,153,0.1));">
+              <span style="width:28px;height:28px;display:inline-flex;">${getEmoteSvg('orbitChill')}</span>
+            </div>
             <div>
-              <strong style="color:#10b981;">${badges?.moderator?.role || 'Moderator'}</strong>
+              <strong style="color:#10b981;font-size:14px;">${badges?.moderator?.role || 'Moderator'}</strong>
               <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">Saturn — Shield of the stream chat</div>
             </div>
           </div>
-          <div style="background:rgba(255,255,255,0.03);padding:16px;border-radius:10px;display:flex;align-items:center;gap:12px;">
-            <span style="font-size:32px;">${badges?.ogUser?.emoji || '⭐'}</span>
+          <div class="orbit-badge-card">
+            <div class="badge-icon" style="background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(251,191,36,0.1));">
+              <span style="width:28px;height:28px;display:inline-flex;">${getEmoteSvg('orbitCrown')}</span>
+            </div>
             <div>
-              <strong style="color:#f59e0b;">${badges?.ogUser?.role || 'OG Pioneer'}</strong>
+              <strong style="color:#f59e0b;font-size:14px;">${badges?.ogUser?.role || 'OG Pioneer'}</strong>
               <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">Gold Star — Early platform adopter</div>
             </div>
           </div>
@@ -1570,9 +1592,9 @@ async function renderEmotes(ws) {
       } else {
         inputContainer.innerHTML = `
           <label style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:4px;display:block;">
-            Emoji Character
+            Emote Character / SVG
           </label>
-          <input class="input-dark" id="new-emote-val" placeholder="Paste emoji e.g. 🚀, 🔥, 👾" style="width:100%;font-size:18px;" />
+          <input class="input-dark" id="new-emote-val" placeholder="Paste emoji or pick from presets below" style="width:100%;font-size:18px;" />
         `;
       }
     }
@@ -1594,15 +1616,17 @@ async function renderEmotes(ws) {
       }
 
       grid.innerHTML = customEmojis.map((e, idx) => `
-        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;">
-          <div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;">
+        <div class="orbit-emote-card stagger-item">
+          <div class="emote-display">
             ${e.isCustomImage
-              ? `<img src="${e.emojiValue}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;" alt=":${escapeHtml(e.name)}:" />`
-              : `<span style="font-size:28px;">${e.emojiValue}</span>`
-            }
+          ? `<img src="${e.emojiValue}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;" alt=":${escapeHtml(e.name)}:" />`
+          : (e.emojiValue.startsWith('orbit:') && OrbitEmotes[e.emojiValue.replace('orbit:', '')]
+            ? OrbitEmotes[e.emojiValue.replace('orbit:', '')].svg
+            : `<span style="font-size:28px;">${e.emojiValue}</span>`)
+        }
           </div>
-          <div style="font-size:12px;font-weight:700;color:#fff;font-family:monospace;">:${escapeHtml(e.name)}:</div>
-          <div style="font-size:10px;color:var(--color-text-muted);margin-top:2px;">${e.isCustomImage ? 'Image' : 'Unicode'}</div>
+          <div class="emote-name">:${escapeHtml(e.name)}:</div>
+          <div class="emote-type-label">${e.isCustomImage ? 'Custom Image' : (e.emojiValue.startsWith('orbit:') ? 'Orbit SVG' : 'Unicode')}</div>
           <button class="btn btn-ghost btn-sm del-emote-btn" data-index="${idx}" title="Remove Emote" style="margin-top:8px;color:var(--color-error);padding:2px 8px;font-size:11px;">
             ${Icons.trash || '🗑'} Delete
           </button>
