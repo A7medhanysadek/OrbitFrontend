@@ -16,4 +16,5 @@ export const channelApi = {
   toggleFollow: (channelId) => apiClient(`/api/Channel/${channelId}/follow`, { method: 'POST' }),
   isFollowing: (channelId) => apiClient(`/api/Channel/${channelId}/following`),
   getFollowedChannels: () => apiClient('/api/Channel/following'),
+  getEmojis: (channelId) => apiClient(`/api/Channel/${channelId}/emojis`),
 };

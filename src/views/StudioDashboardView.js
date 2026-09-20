@@ -6,7 +6,7 @@ import { categoryApi } from '../api/category.js';
 import { Icons } from '../components/CosmicIcons.js';
 import { openVodPlayerModal } from '../components/VodPlayerModal.js';
 import { openImageCropperModal } from '../components/ImageCropperModal.js';
-import { OrbitEmotes, getEmoteSvg, getAllPresets } from '../components/OrbitEmotes.js';
+import { OrbitEmotes, getEmoteSvg, getAllPresets, renderEmoteVisual } from '../components/OrbitEmotes.js';
 
 let studioTab = 'overview';
 let channelSubTab = 'profile';
@@ -1385,356 +1385,545 @@ async function renderEmotes(ws) {
       dashboardApi.getBadges()
     ]);
 
-    let customEmojis = emojisRes.status === 'fulfilled' && Array.isArray(emojisRes.value)
+    const channelId = channelData?.id || 'me';
+    const localStored = localStorage.getItem(`orbit_channel_emotes_${channelId}`);
+    let parsedLocal = null;
+    if (localStored) {
+      try { parsedLocal = JSON.parse(localStored); } catch (_) {}
+    }
+
+    let customEmojis = (emojisRes.status === 'fulfilled' && Array.isArray(emojisRes.value) && emojisRes.value.length > 0)
       ? emojisRes.value
-      : [];
+      : (Array.isArray(parsedLocal) && parsedLocal.length > 0 ? parsedLocal : []);
 
     const badges = badgesRes.status === 'fulfilled' ? badgesRes.value : null;
+    let isDirty = false;
+    let activeSubTab = 'presets'; // 'presets' | 'upload'
+    let selectedImageDataUrl = '';
 
-    ws.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
-        <div>
-          <h2 style="font-family:var(--font-display);color:var(--color-cyan-neon);margin:0 0 4px 0;display:flex;align-items:center;gap:10px;">
-            <span style="width:28px;height:28px;display:inline-flex;">${getEmoteSvg('orbitPog')}</span>
-            Emotes &amp; Badges Studio
-          </h2>
-          <p style="color:var(--color-text-muted);font-size:14px;margin:0;">Configure custom emotes for your channel chat and view celestial role badges.</p>
-        </div>
-        <button id="save-emojis-server-btn" class="btn btn-cyan btn-sm" style="padding:8px 20px;">
-          ${Icons.check || '✓'} Save All Emotes (${customEmojis.length}/50)
-        </button>
-      </div>
+    function renderStudioUI() {
+      const usedCount = customEmojis.length;
+      const pct = Math.min(100, Math.round((usedCount / 50) * 100));
 
-      <!-- Add New Custom Emote Card -->
-      <div class="card" style="padding:24px;margin-bottom:24px;border-color:rgba(0,242,254,0.2);position:relative;overflow:hidden;">
-        <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:radial-gradient(circle,rgba(0,242,254,0.06),transparent 70%);pointer-events:none;"></div>
-        <h4 style="color:#fff;font-size:15px;font-weight:700;margin:0 0 14px;display:flex;align-items:center;gap:8px;">
-          ${Icons.plus || '+'} Add New Custom Emote
-        </h4>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:16px;align-items:end;">
-          <div class="form-group">
-            <label style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:4px;display:block;">
-              Emote Shortcode (e.g. <code style="color:var(--color-cyan-neon);">orbitPog</code>)
-            </label>
-            <input class="input-dark" id="new-emote-name" placeholder="orbitPog (alphanumeric)" style="width:100%;" />
-          </div>
-          <div class="form-group">
-            <label style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:6px;display:block;">
-              Emote Type
-            </label>
-            <div class="emote-type-toggle-group" style="display:inline-flex;width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:3px;gap:4px;">
-              <button type="button" id="toggle-type-unicode" class="emote-toggle-btn active" style="flex:1;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,rgba(0,174,189,0.3),rgba(0,221,238,0.2));color:#fff;box-shadow:0 0 10px rgba(0,174,189,0.3);transition:all 0.2s ease;">
-                <span style="width:16px;height:16px;display:inline-flex;">${getEmoteSvg('orbitStar')}</span> Orbit Emote
-              </button>
-              <button type="button" id="toggle-type-image" class="emote-toggle-btn" style="flex:1;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;background:transparent;color:var(--color-text-muted);transition:all 0.2s ease;">
-                <span>🖼️</span> Custom Image
-              </button>
-            </div>
-            <input type="radio" name="emote-type" value="unicode" checked id="type-unicode" style="display:none;" />
-            <input type="radio" name="emote-type" value="image" id="type-image" style="display:none;" />
-          </div>
-          <div class="form-group" id="emote-input-container">
-            <label style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:4px;display:block;">
-              Emote Character / SVG
-            </label>
-            <input class="input-dark" id="new-emote-val" placeholder="Paste emoji or pick from presets below" style="width:100%;font-size:18px;" />
-          </div>
+      ws.innerHTML = `
+        <!-- Studio Header & Save Action -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:16px;">
           <div>
-            <button id="add-emote-btn" class="btn btn-cyan btn-sm btn-full" style="height:42px;">
-              Add to Emotes
+            <div style="display:flex;align-items:center;gap:10px;">
+              <h2 style="font-family:var(--font-display);color:var(--color-cyan-neon);margin:0;display:flex;align-items:center;gap:10px;font-size:24px;">
+                <span style="width:28px;height:28px;display:inline-flex;">${getEmoteSvg('orbitStar')}</span>
+                Custom Emotes &amp; Badges Studio
+              </h2>
+              <span id="emotes-dirty-badge" style="display:${isDirty ? 'inline-flex' : 'none'};background:rgba(245,158,11,0.15);border:1px solid #f59e0b;color:#f59e0b;font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;align-items:center;gap:4px;">
+                ● Unsaved Changes
+              </span>
+            </div>
+            <p style="color:var(--color-text-muted);font-size:14px;margin:6px 0 0 0;">
+              Add unique emotes exclusively for your channel viewers. Only emotes configured here will appear in your live stream chat.
+            </p>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px;">
+            <button id="save-emojis-server-btn" class="btn btn-cyan btn-sm" style="padding:10px 22px;font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 0 16px rgba(0,242,254,0.3);transition:all 0.2s;">
+              ${Icons.check || '✓'} Save All Emotes (<span id="btn-emotes-count">${usedCount}</span>/50)
             </button>
           </div>
         </div>
 
-        <!-- Orbit Custom Emote Presets -->
-        <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06);">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-            <span style="width:18px;height:18px;display:inline-flex;">${getEmoteSvg('orbitHype')}</span>
-            <span style="font-size:13px;font-weight:700;color:var(--color-cyan-neon);">Orbit Exclusive Presets</span>
-            <span style="font-size:11px;color:var(--color-text-muted);">(Click to add)</span>
+        <!-- Slots Usage Progress Bar -->
+        <div class="card" style="padding:16px 20px;margin-bottom:24px;background:linear-gradient(135deg,rgba(15,20,36,0.9),rgba(7,10,20,0.9));border:1px solid rgba(0,242,254,0.15);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--color-text-primary);">
+              <span>⚡ Channel Emote Capacity:</span>
+              <span style="color:var(--color-cyan-neon);"><span id="header-emotes-count">${usedCount}</span> of 50 Emotes Assigned</span>
+            </div>
+            <span style="font-size:12px;color:var(--color-text-muted);">${50 - usedCount} slots available</span>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;" id="orbit-presets-container">
-            ${getAllPresets().map(e => `
-              <button class="orbit-preset-btn preset-btn" data-name="${e.name}" data-val="orbit:${e.name}" title=":${e.name}:">
-                <span style="width:20px;height:20px;display:inline-flex;">${e.svg}</span>
-                <span>:${e.name}:</span>
+          <div style="width:100%;height:8px;background:rgba(255,255,255,0.06);border-radius:10px;overflow:hidden;position:relative;">
+            <div id="emotes-progress-bar" style="width:${pct}%;height:100%;background:linear-gradient(90deg,var(--color-cyan-primary),var(--color-cyan-neon));border-radius:10px;box-shadow:0 0 10px rgba(0,242,254,0.5);transition:width 0.3s ease;"></div>
+          </div>
+        </div>
+
+        <!-- Emote Creation Studio -->
+        <div class="card" style="padding:24px;margin-bottom:24px;border:1px solid rgba(0,242,254,0.25);position:relative;overflow:hidden;background:linear-gradient(180deg,rgba(15,20,36,0.95) 0%,rgba(9,12,24,0.98) 100%);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:16px;font-weight:700;color:#fff;">Create &amp; Add Channel Emotes</span>
+            </div>
+            <div class="tabs" style="margin:0;border:none;gap:8px;">
+              <button type="button" id="subtab-btn-presets" class="tab-btn ${activeSubTab === 'presets' ? 'active' : ''}" style="padding:6px 14px;font-size:12px;font-weight:700;border-radius:8px;">
+                ✨ Cosmic Presets
               </button>
-            `).join('')}
+              <button type="button" id="subtab-btn-upload" class="tab-btn ${activeSubTab === 'upload' ? 'active' : ''}" style="padding:6px 14px;font-size:12px;font-weight:700;border-radius:8px;">
+                🖼️ Custom Image Upload
+              </button>
+            </div>
+          </div>
+
+          <!-- SUBTAB 1: Cosmic Presets -->
+          <div id="subtab-content-presets" style="display:${activeSubTab === 'presets' ? 'block' : 'none'};">
+            <p style="font-size:13px;color:var(--color-text-muted);margin:0 0 16px 0;">
+              Add official Orbit cosmic emotes to your channel chat with one click. Viewers can type their shortcode or select them from the chat picker.
+            </p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:12px;" id="presets-grid">
+              ${getAllPresets().map(p => {
+                const isAlreadyAdded = customEmojis.some(e => e.name.toLowerCase() === p.name.toLowerCase());
+                return `
+                  <div class="preset-card" style="display:flex;flex-direction:column;align-items:center;padding:14px 10px;background:rgba(255,255,255,0.03);border:1px solid ${isAlreadyAdded ? 'rgba(0,242,254,0.4)' : 'rgba(255,255,255,0.08)'};border-radius:10px;text-align:center;gap:8px;position:relative;transition:all 0.2s ease;">
+                    <div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;">
+                      ${p.svg}
+                    </div>
+                    <div style="font-size:11px;font-weight:700;color:#fff;">:${p.name}:</div>
+                    <div style="font-size:10px;color:var(--color-text-muted);">${p.label}</div>
+                    <button class="btn btn-sm add-preset-quick-btn ${isAlreadyAdded ? 'btn-ghost' : 'btn-cyan'}" data-name="${p.name}" data-val="orbit:${p.name}" style="width:100%;font-size:11px;padding:4px 8px;margin-top:2px;" ${isAlreadyAdded ? 'disabled' : ''}>
+                      ${isAlreadyAdded ? '✓ Added' : '+ Add'}
+                    </button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- SUBTAB 2: Custom Image Upload -->
+          <div id="subtab-content-upload" style="display:${activeSubTab === 'upload' ? 'block' : 'none'};">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:20px;align-items:start;">
+              <div>
+                <div class="form-group" style="margin-bottom:14px;">
+                  <label style="font-size:12px;font-weight:700;color:var(--color-text-muted);margin-bottom:6px;display:block;">
+                    1. Shortcode (e.g. <code style="color:var(--color-cyan-neon);">galaxy</code>)
+                  </label>
+                  <div style="display:flex;align-items:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:8px;overflow:hidden;padding:0 10px;">
+                    <span style="font-family:var(--font-mono);color:var(--color-cyan-neon);font-weight:700;font-size:15px;">:</span>
+                    <input class="input-dark" id="custom-emote-shortcode" placeholder="hype" style="border:none;background:transparent;box-shadow:none;flex:1;padding:10px 6px;font-weight:600;" maxlength="32" />
+                    <span style="font-family:var(--font-mono);color:var(--color-cyan-neon);font-weight:700;font-size:15px;">:</span>
+                  </div>
+                  <small style="color:var(--color-text-muted);font-size:11px;display:block;margin-top:4px;">
+                    Only alphanumeric characters and underscores (2-32 chars).
+                  </small>
+                </div>
+
+                <div class="form-group" style="margin-bottom:16px;">
+                  <label style="font-size:12px;font-weight:700;color:var(--color-text-muted);margin-bottom:6px;display:block;">
+                    2. Select &amp; Crop Square Image
+                  </label>
+                  <div id="drop-zone" style="border:2px dashed rgba(0,242,254,0.3);border-radius:10px;padding:24px 16px;text-align:center;background:rgba(0,242,254,0.02);cursor:pointer;transition:all 0.2s;">
+                    <div style="font-size:28px;margin-bottom:6px;">🖼️</div>
+                    <div style="font-size:13px;font-weight:600;color:#fff;" id="drop-zone-text">
+                      ${selectedImageDataUrl ? 'Image Selected (Click to change)' : 'Click to Browse or Drag Image'}
+                    </div>
+                    <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">
+                      Square 1:1 auto-crop &bull; PNG, JPG, WebP, SVG supported
+                    </div>
+                    <input type="file" id="custom-emote-file-inp" accept="image/*" style="display:none;" />
+                  </div>
+                </div>
+
+                <button id="commit-custom-emote-btn" class="btn btn-cyan btn-sm btn-full" style="height:42px;font-weight:700;font-size:13px;">
+                  + Add to Channel Emotes
+                </button>
+              </div>
+
+              <!-- Live Interactive Chat Preview Bubble -->
+              <div style="background:rgba(4,7,18,0.7);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:18px;">
+                <div style="font-size:12px;font-weight:700;color:var(--color-cyan-neon);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+                  <span>💬</span> Live Chat Bubble Simulation
+                </div>
+                <div style="background:rgba(15,20,36,0.8);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px;display:flex;align-items:flex-start;gap:10px;">
+                  <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--color-cyan-primary),var(--color-cyan-neon));display:flex;align-items:center;justify-content:center;font-weight:700;color:#000;font-size:12px;overflow:hidden;flex-shrink:0;">
+                    ${channelData?.profilePhotoUrl ? `<img src="${channelData.profilePhotoUrl}" style="width:100%;height:100%;object-fit:cover;" />` : 'C'}
+                  </div>
+                  <div style="flex:1;font-size:13px;line-height:1.4;">
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+                      <span style="font-weight:700;color:var(--color-cyan-neon);">${channelData?.channelName || 'Streamer'}</span>
+                      <span style="background:linear-gradient(135deg,#FFD700,#FFA500);color:#000;font-size:9px;font-weight:800;padding:1px 4px;border-radius:4px;">👑 HOST</span>
+                    </div>
+                    <div id="simulated-chat-msg" style="color:var(--color-text-primary);word-break:break-word;">
+                      Hey chat! Check out our new emote <span id="preview-emote-token" style="display:inline-flex;align-items:center;vertical-align:middle;margin:0 2px;">
+                        ${selectedImageDataUrl ? `<img src="${selectedImageDataUrl}" style="width:24px;height:24px;object-fit:contain;border-radius:4px;" />` : '<span style="color:var(--color-text-muted);font-style:italic;">:shortcode:</span>'}
+                      </span> in action!
+                    </div>
+                  </div>
+                </div>
+                <div style="margin-top:12px;font-size:11px;color:var(--color-text-muted);display:flex;align-items:center;gap:6px;">
+                  <span>💡</span> This is exactly how your emote appears in your live stream chat room.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Channel Custom Emotes Gallery -->
-      <div class="card" style="padding:24px;margin-bottom:24px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <h4 style="color:#fff;font-size:15px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
-            <span style="width:20px;height:20px;display:inline-flex;">${getEmoteSvg('orbitCrown')}</span>
-            Active Channel Emotes (<span id="emotes-count">${customEmojis.length}</span>/50)
-          </h4>
-          <span style="font-size:12px;color:var(--color-text-muted);">Type <code style="color:var(--color-cyan-neon);">:name:</code> in stream chat to use</span>
-        </div>
-        <div id="emotes-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:14px;">
-          <!-- Rendered dynamically -->
-        </div>
-      </div>
-
-      <!-- Platform Role Badges -->
-      <div class="card" style="padding:24px;">
-        <h4 style="color:#fff;font-size:15px;font-weight:700;margin:0 0 16px;display:flex;align-items:center;gap:8px;">
-          <span style="width:20px;height:20px;display:inline-flex;">${getEmoteSvg('orbitGG')}</span>
-          Cosmic Role Badges
-        </h4>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;">
-          <div class="orbit-badge-card">
-            <div class="badge-icon" style="background:linear-gradient(135deg,rgba(0,174,189,0.15),rgba(0,242,254,0.1));">
-              <span style="width:28px;height:28px;display:inline-flex;">${getEmoteSvg('orbitStar')}</span>
-            </div>
+        <!-- Active Channel Emotes Grid -->
+        <div class="card" style="padding:24px;margin-bottom:24px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
             <div>
-              <strong style="color:var(--color-cyan-primary);font-size:14px;">${badges?.owner?.role || 'Channel Owner'}</strong>
-              <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">Earth — Creator of the channel</div>
+              <h4 style="color:#fff;font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+                <span style="width:20px;height:20px;display:inline-flex;">${getEmoteSvg('orbitCrown')}</span>
+                Active Channel Emotes (<span id="emotes-count">${usedCount}</span>/50)
+              </h4>
+              <p style="font-size:12px;color:var(--color-text-muted);margin:4px 0 0 0;">
+                Click any emote code to copy it. Remember to click <strong>"Save All Emotes"</strong> above when finished.
+              </p>
             </div>
+            ${usedCount > 0 ? `
+              <button id="clear-all-emotes-btn" class="btn btn-ghost btn-sm" style="color:var(--color-error);font-size:11px;padding:4px 10px;">
+                Clear All
+              </button>
+            ` : ''}
           </div>
-          <div class="orbit-badge-card">
-            <div class="badge-icon" style="background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(52,211,153,0.1));">
-              <span style="width:28px;height:28px;display:inline-flex;">${getEmoteSvg('orbitChill')}</span>
-            </div>
-            <div>
-              <strong style="color:#10b981;font-size:14px;">${badges?.moderator?.role || 'Moderator'}</strong>
-              <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">Saturn — Shield of the stream chat</div>
-            </div>
+
+          <div id="emotes-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));gap:14px;">
+            <!-- Rendered dynamically -->
           </div>
-          <div class="orbit-badge-card">
-            <div class="badge-icon" style="background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(251,191,36,0.1));">
-              <span style="width:28px;height:28px;display:inline-flex;">${getEmoteSvg('orbitCrown')}</span>
+        </div>
+
+        <!-- Platform Cosmic Role Badges (Reference) -->
+        <div class="card" style="padding:24px;">
+          <div style="margin-bottom:16px;">
+            <h4 style="color:#fff;font-size:15px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span style="width:20px;height:20px;display:inline-flex;">${getEmoteSvg('orbitGG')}</span>
+              Cosmic Role Badges
+            </h4>
+            <p style="font-size:12px;color:var(--color-text-muted);margin:4px 0 0 0;">
+              Automatic space badges assigned to users according to their celestial roles in chat.
+            </p>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px;">
+            <div class="orbit-badge-card" style="display:flex;align-items:center;gap:12px;padding:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,215,0,0.25);border-radius:10px;">
+              <div class="badge-icon" style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,rgba(255,215,0,0.2),rgba(255,165,0,0.1));display:flex;align-items:center;justify-content:center;font-size:20px;">
+                👑
+              </div>
+              <div>
+                <strong style="color:#FFD700;font-size:13px;display:block;">${badges?.owner?.role || 'Channel Host'}</strong>
+                <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">Earth — Creator &amp; Broadcaster</div>
+              </div>
             </div>
-            <div>
-              <strong style="color:#f59e0b;font-size:14px;">${badges?.ogUser?.role || 'OG Pioneer'}</strong>
-              <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">Gold Star — Early platform adopter</div>
+            <div class="orbit-badge-card" style="display:flex;align-items:center;gap:12px;padding:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(16,185,129,0.25);border-radius:10px;">
+              <div class="badge-icon" style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,rgba(16,185,129,0.2),rgba(5,150,105,0.1));display:flex;align-items:center;justify-content:center;font-size:20px;">
+                🛡️
+              </div>
+              <div>
+                <strong style="color:#10b981;font-size:13px;display:block;">${badges?.moderator?.role || 'Moderator'}</strong>
+                <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">Saturn — Shield of the stream chat</div>
+              </div>
+            </div>
+            <div class="orbit-badge-card" style="display:flex;align-items:center;gap:12px;padding:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(245,158,11,0.25);border-radius:10px;">
+              <div class="badge-icon" style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,rgba(245,158,11,0.2),rgba(217,119,6,0.1));display:flex;align-items:center;justify-content:center;font-size:20px;">
+                ⭐
+              </div>
+              <div>
+                <strong style="color:#f59e0b;font-size:13px;display:block;">${badges?.ogUser?.role || 'OG Pioneer'}</strong>
+                <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">Gold Star — Early platform adopter</div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    `;
+      `;
 
-    // Radio toggle for emote type
-    let selectedImageFile = null;
-    let selectedImageDataUrl = '';
-
-    const typeUnicode = document.getElementById('type-unicode');
-    const typeImage = document.getElementById('type-image');
-    const btnUnicode = document.getElementById('toggle-type-unicode');
-    const btnImage = document.getElementById('toggle-type-image');
-    const inputContainer = document.getElementById('emote-input-container');
-
-    function updateTogglePills() {
-      if (typeImage?.checked) {
-        btnImage?.style.setProperty('background', 'linear-gradient(135deg,rgba(0,174,189,0.3),rgba(0,221,238,0.2))');
-        btnImage?.style.setProperty('color', '#fff');
-        btnImage?.style.setProperty('box-shadow', '0 0 10px rgba(0,174,189,0.3)');
-        btnUnicode?.style.setProperty('background', 'transparent');
-        btnUnicode?.style.setProperty('color', 'var(--color-text-muted)');
-        btnUnicode?.style.setProperty('box-shadow', 'none');
-      } else {
-        btnUnicode?.style.setProperty('background', 'linear-gradient(135deg,rgba(0,174,189,0.3),rgba(0,221,238,0.2))');
-        btnUnicode?.style.setProperty('color', '#fff');
-        btnUnicode?.style.setProperty('box-shadow', '0 0 10px rgba(0,174,189,0.3)');
-        btnImage?.style.setProperty('background', 'transparent');
-        btnImage?.style.setProperty('color', 'var(--color-text-muted)');
-        btnImage?.style.setProperty('box-shadow', 'none');
-      }
+      attachEventHandlers();
+      renderEmotesGrid();
     }
-
-    btnUnicode?.addEventListener('click', () => {
-      if (typeUnicode) typeUnicode.checked = true;
-      if (typeImage) typeImage.checked = false;
-      updateTogglePills();
-      updateInputMode();
-    });
-
-    btnImage?.addEventListener('click', () => {
-      if (typeImage) typeImage.checked = true;
-      if (typeUnicode) typeUnicode.checked = false;
-      updateTogglePills();
-      updateInputMode();
-    });
-
-    function updateInputMode() {
-      if (typeImage.checked) {
-        inputContainer.innerHTML = `
-          <label style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:4px;display:block;">
-            Upload Image (1:1 Aspect Ratio)
-          </label>
-          <label class="btn btn-outline btn-sm" style="cursor:pointer;width:100%;height:42px;justify-content:center;margin-top:0;">
-            ${Icons.upload || '⬆'} ${selectedImageDataUrl ? 'Image Selected (Crop Done)' : 'Select &amp; Crop Image'}
-            <input type="file" id="emote-file-inp" accept="image/*" style="display:none;" />
-          </label>
-        `;
-
-        document.getElementById('emote-file-inp')?.addEventListener('change', (e) => {
-          if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            openImageCropperModal(file, {
-              aspectRatio: 1,
-              title: 'Crop Custom Emote (1:1)'
-            }, (croppedFile) => {
-              selectedImageFile = croppedFile;
-              const reader = new FileReader();
-              reader.onload = (re) => {
-                selectedImageDataUrl = re.target.result;
-                updateInputMode();
-                store.showToast('Image cropped and ready!', 'success');
-              };
-              reader.readAsDataURL(croppedFile);
-            });
-            e.target.value = '';
-          }
-        });
-      } else {
-        inputContainer.innerHTML = `
-          <label style="font-size:12px;font-weight:600;color:var(--color-text-muted);margin-bottom:4px;display:block;">
-            Emote Character / SVG
-          </label>
-          <input class="input-dark" id="new-emote-val" placeholder="Paste emoji or pick from presets below" style="width:100%;font-size:18px;" />
-        `;
-      }
-    }
-
-    typeUnicode?.addEventListener('change', updateInputMode);
-    typeImage?.addEventListener('change', updateInputMode);
 
     function renderEmotesGrid() {
       const grid = document.getElementById('emotes-grid');
       const countEl = document.getElementById('emotes-count');
-      const saveBtn = document.getElementById('save-emojis-server-btn');
-      if (countEl) countEl.textContent = customEmojis.length;
-      if (saveBtn) saveBtn.textContent = `Save All Emotes (${customEmojis.length}/50)`;
+      const headerCountEl = document.getElementById('header-emotes-count');
+      const btnCountEl = document.getElementById('btn-emotes-count');
+      const progBar = document.getElementById('emotes-progress-bar');
+      const dirtyBadge = document.getElementById('emotes-dirty-badge');
+
+      const count = customEmojis.length;
+      if (countEl) countEl.textContent = count;
+      if (headerCountEl) headerCountEl.textContent = count;
+      if (btnCountEl) btnCountEl.textContent = count;
+      if (progBar) progBar.style.width = `${Math.min(100, Math.round((count / 50) * 100))}%`;
+      if (dirtyBadge) dirtyBadge.style.display = isDirty ? 'inline-flex' : 'none';
 
       if (!grid) return;
       if (!customEmojis.length) {
-        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--color-text-muted);">No custom emojis configured yet. Add your first emote above!</div>';
+        grid.innerHTML = `
+          <div style="grid-column:1/-1;text-align:center;padding:48px 20px;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.08);border-radius:12px;">
+            <div style="font-size:36px;margin-bottom:10px;">🛸</div>
+            <h4 style="color:#fff;margin:0 0 6px 0;font-size:15px;">No Custom Emotes Configured Yet</h4>
+            <p style="color:var(--color-text-muted);font-size:13px;max-width:400px;margin:0 auto 16px auto;">
+              Your channel live stream chat currently has no custom emotes. Add a cosmic preset or upload an image above!
+            </p>
+          </div>
+        `;
         return;
       }
 
-      grid.innerHTML = customEmojis.map((e, idx) => `
-        <div class="orbit-emote-card stagger-item">
-          <div class="emote-display">
-            ${e.isCustomImage
-          ? `<img src="${e.emojiValue}" style="width:32px;height:32px;object-fit:cover;border-radius:6px;" alt=":${escapeHtml(e.name)}:" />`
-          : (e.emojiValue.startsWith('orbit:') && OrbitEmotes[e.emojiValue.replace('orbit:', '')]
-            ? OrbitEmotes[e.emojiValue.replace('orbit:', '')].svg
-            : `<span style="font-size:28px;">${e.emojiValue}</span>`)
-        }
+      grid.innerHTML = customEmojis.map((e, idx) => {
+        const isCustomImg = e.isCustomImage || (e.emojiValue && (e.emojiValue.startsWith('data:image') || e.emojiValue.startsWith('http')));
+        return `
+          <div class="orbit-emote-card" style="display:flex;flex-direction:column;align-items:center;padding:16px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(0,242,254,0.18);border-radius:12px;text-align:center;gap:8px;position:relative;transition:all 0.2s ease;">
+            <div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);border-radius:8px;padding:4px;">
+              ${renderEmoteVisual(e, 36)}
+            </div>
+            <div class="copy-emote-badge" data-code=":${escapeHtml(e.name)}:" title="Click to copy code" style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--color-cyan-neon);cursor:pointer;padding:2px 6px;background:rgba(0,242,254,0.08);border-radius:4px;border:1px solid rgba(0,242,254,0.2);">
+              :${escapeHtml(e.name)}:
+            </div>
+            <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${isCustomImg ? 'rgba(121,40,202,0.15)' : 'rgba(0,174,189,0.15)'};color:${isCustomImg ? '#c084fc' : 'var(--color-cyan-primary)'};border:1px solid ${isCustomImg ? 'rgba(121,40,202,0.3)' : 'rgba(0,174,189,0.3)'};">
+              ${isCustomImg ? 'Custom Image' : 'Cosmic Preset'}
+            </span>
+            <button class="btn btn-ghost btn-sm del-emote-btn" data-index="${idx}" title="Remove emote" style="color:var(--color-error);font-size:11px;padding:4px 8px;margin-top:2px;">
+              ${Icons.trash || '🗑'} Delete
+            </button>
           </div>
-          <div class="emote-name">:${escapeHtml(e.name)}:</div>
-          <div class="emote-type-label">${e.isCustomImage ? 'Custom Image' : (e.emojiValue.startsWith('orbit:') ? 'Orbit SVG' : 'Unicode')}</div>
-          <button class="btn btn-ghost btn-sm del-emote-btn" data-index="${idx}" title="Remove Emote" style="margin-top:8px;color:var(--color-error);padding:2px 8px;font-size:11px;">
-            ${Icons.trash || '🗑'} Delete
-          </button>
-        </div>
-      `).join('');
+        `;
+      }).join('');
 
+      // Click to copy code
+      grid.querySelectorAll('.copy-emote-badge').forEach(badge => {
+        badge.addEventListener('click', () => {
+          const code = badge.dataset.code;
+          navigator.clipboard?.writeText(code).then(() => {
+            const original = badge.textContent;
+            badge.textContent = 'Copied!';
+            badge.style.color = '#10b981';
+            setTimeout(() => {
+              badge.textContent = original;
+              badge.style.color = 'var(--color-cyan-neon)';
+            }, 1200);
+          });
+        });
+      });
+
+      // Delete emote
       grid.querySelectorAll('.del-emote-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           const idx = parseInt(btn.dataset.index);
-          customEmojis.splice(idx, 1);
+          const removed = customEmojis.splice(idx, 1)[0];
+          isDirty = true;
           renderEmotesGrid();
-          store.showToast('Emote removed from list. Click "Save All Emotes" to commit.', 'info');
+          // Update presets buttons state
+          document.querySelectorAll('.add-preset-quick-btn').forEach(pb => {
+            if (pb.dataset.name.toLowerCase() === removed?.name?.toLowerCase()) {
+              pb.disabled = false;
+              pb.className = 'btn btn-sm add-preset-quick-btn btn-cyan';
+              pb.textContent = '+ Add';
+            }
+          });
+          store.showToast(`Removed :${removed?.name}:. Click "Save All Emotes" to commit.`, 'info');
         });
       });
     }
 
-    renderEmotesGrid();
+    function attachEventHandlers() {
+      // Sub-tab toggling
+      const btnPresets = document.getElementById('subtab-btn-presets');
+      const btnUpload = document.getElementById('subtab-btn-upload');
+      const tabPresets = document.getElementById('subtab-content-presets');
+      const tabUpload = document.getElementById('subtab-content-upload');
 
-    // Add emote button
-    document.getElementById('add-emote-btn')?.addEventListener('click', () => {
-      const nameInp = document.getElementById('new-emote-name');
-      const rawName = nameInp?.value?.trim().replace(/^:/, '').replace(/:$/, '');
-      if (!rawName || !/^[a-zA-Z0-9_]{2,32}$/.test(rawName)) {
-        store.showToast('Emote name must be 2-32 characters alphanumeric/underscore', 'error');
-        return;
+      btnPresets?.addEventListener('click', () => {
+        activeSubTab = 'presets';
+        btnPresets.classList.add('active');
+        btnUpload?.classList.remove('active');
+        if (tabPresets) tabPresets.style.display = 'block';
+        if (tabUpload) tabUpload.style.display = 'none';
+      });
+
+      btnUpload?.addEventListener('click', () => {
+        activeSubTab = 'upload';
+        btnUpload.classList.add('active');
+        btnPresets?.classList.remove('active');
+        if (tabPresets) tabPresets.style.display = 'none';
+        if (tabUpload) tabUpload.style.display = 'block';
+      });
+
+      // Add preset buttons
+      document.querySelectorAll('.add-preset-quick-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (customEmojis.length >= 50) {
+            store.showToast('Maximum 50 custom emotes reached', 'error');
+            return;
+          }
+          const pName = btn.dataset.name;
+          const pVal = btn.dataset.val;
+          if (customEmojis.some(e => e.name.toLowerCase() === pName.toLowerCase())) {
+            store.showToast(`:${pName}: is already added to this channel`, 'info');
+            return;
+          }
+          customEmojis.push({
+            name: pName,
+            emojiValue: pVal,
+            isCustomImage: false
+          });
+          isDirty = true;
+          btn.disabled = true;
+          btn.className = 'btn btn-sm add-preset-quick-btn btn-ghost';
+          btn.textContent = '✓ Added';
+          renderEmotesGrid();
+          store.showToast(`Added :${pName}:! Remember to click "Save All Emotes".`, 'success');
+        });
+      });
+
+      // File input & Drag/Drop
+      const dropZone = document.getElementById('drop-zone');
+      const fileInp = document.getElementById('custom-emote-file-inp');
+      const dropZoneText = document.getElementById('drop-zone-text');
+      const tokenPreview = document.getElementById('preview-emote-token');
+      const shortcodeInp = document.getElementById('custom-emote-shortcode');
+
+      dropZone?.addEventListener('click', () => fileInp?.click());
+
+      dropZone?.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--color-cyan-neon)';
+      });
+      dropZone?.addEventListener('dragleave', () => {
+        dropZone.style.borderColor = 'rgba(0,242,254,0.3)';
+      });
+      dropZone?.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'rgba(0,242,254,0.3)';
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleFileSelected(e.dataTransfer.files[0]);
+        }
+      });
+
+      fileInp?.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          handleFileSelected(e.target.files[0]);
+          e.target.value = '';
+        }
+      });
+
+      function handleFileSelected(file) {
+        openImageCropperModal(file, {
+          aspectRatio: 1,
+          title: 'Crop Emote (1:1 Square)'
+        }, (croppedFile) => {
+          const reader = new FileReader();
+          reader.onload = (re) => {
+            selectedImageDataUrl = re.target.result;
+            if (dropZoneText) dropZoneText.textContent = '✓ Image Ready (Click to change)';
+            if (tokenPreview) {
+              tokenPreview.innerHTML = `<img src="${selectedImageDataUrl}" style="width:24px;height:24px;object-fit:contain;border-radius:4px;" />`;
+            }
+            store.showToast('Image cropped and ready!', 'success');
+          };
+          reader.readAsDataURL(croppedFile);
+        });
       }
 
-      if (customEmojis.some(e => e.name.toLowerCase() === rawName.toLowerCase())) {
-        store.showToast('An emote with this shortcode already exists', 'error');
-        return;
-      }
+      // Live Shortcode Input listener
+      shortcodeInp?.addEventListener('input', (e) => {
+        const val = e.target.value.trim().replace(/^:/, '').replace(/:$/, '');
+        if (!selectedImageDataUrl && tokenPreview) {
+          tokenPreview.innerHTML = val ? `<span style="font-family:var(--font-mono);color:var(--color-cyan-neon);font-weight:700;">:${escapeHtml(val)}:</span>` : '<span style="color:var(--color-text-muted);font-style:italic;">:shortcode:</span>';
+        }
+      });
 
-      if (typeImage.checked) {
-        if (!selectedImageDataUrl) {
-          store.showToast('Please select and crop an image first', 'error');
+      // Commit Custom Emote
+      document.getElementById('commit-custom-emote-btn')?.addEventListener('click', () => {
+        if (customEmojis.length >= 50) {
+          store.showToast('Maximum 50 custom emotes reached', 'error');
           return;
         }
+        const rawName = shortcodeInp?.value?.trim().replace(/^:/, '').replace(/:$/, '');
+        if (!rawName || !/^[a-zA-Z0-9_]{2,32}$/.test(rawName)) {
+          store.showToast('Shortcode must be 2-32 characters alphanumeric/underscore', 'error');
+          return;
+        }
+        if (customEmojis.some(e => e.name.toLowerCase() === rawName.toLowerCase())) {
+          store.showToast(`An emote with code :${rawName}: already exists`, 'error');
+          return;
+        }
+        if (!selectedImageDataUrl) {
+          store.showToast('Please select and crop an image for this emote first', 'error');
+          return;
+        }
+
         customEmojis.push({
           name: rawName,
           emojiValue: selectedImageDataUrl,
           isCustomImage: true
         });
+
+        isDirty = true;
         selectedImageDataUrl = '';
-        selectedImageFile = null;
-        updateInputMode();
-      } else {
-        const valInp = document.getElementById('new-emote-val');
-        const val = valInp?.value?.trim();
-        if (!val) {
-          store.showToast('Please enter an emoji character', 'error');
-          return;
-        }
-        customEmojis.push({
-          name: rawName,
-          emojiValue: val,
-          isCustomImage: false
-        });
-        if (valInp) valInp.value = '';
-      }
+        if (shortcodeInp) shortcodeInp.value = '';
+        if (dropZoneText) dropZoneText.textContent = 'Click to Browse or Drag Image';
+        if (tokenPreview) tokenPreview.innerHTML = '<span style="color:var(--color-text-muted);font-style:italic;">:shortcode:</span>';
 
-      if (nameInp) nameInp.value = '';
-      renderEmotesGrid();
-      store.showToast(`:${rawName}: added! Click "Save All Emotes" to save to channel.`, 'success');
-    });
-
-    // Preset buttons
-    document.querySelectorAll('.preset-btn').forEach(b => {
-      b.addEventListener('click', () => {
-        const pName = b.dataset.name;
-        const pVal = b.dataset.val;
-        if (customEmojis.some(e => e.name.toLowerCase() === pName.toLowerCase())) {
-          store.showToast(`:${pName}: is already in your emotes list`, 'info');
-          return;
-        }
-        customEmojis.push({
-          name: pName,
-          emojiValue: pVal,
-          isCustomImage: false
-        });
         renderEmotesGrid();
-        store.showToast(`Added :${pName}: preset!`, 'success');
+        store.showToast(`:${rawName}: added! Click "Save All Emotes" to save to channel.`, 'success');
       });
-    });
 
-    // Save all to backend
-    document.getElementById('save-emojis-server-btn')?.addEventListener('click', async () => {
-      const btn = document.getElementById('save-emojis-server-btn');
-      btn.disabled = true;
-      try {
-        const payload = {
-          emojis: customEmojis.map(e => ({
-            name: e.name,
-            emojiValue: e.emojiValue,
-            isCustomImage: e.isCustomImage
-          }))
-        };
-        const res = await dashboardApi.setEmojis(payload);
-        customEmojis = res || [];
+      // Clear all emotes button
+      document.getElementById('clear-all-emotes-btn')?.addEventListener('click', () => {
+        if (!confirm('Are you sure you want to remove all emotes from this channel?')) return;
+        customEmojis = [];
+        isDirty = true;
         renderEmotesGrid();
-        store.showToast('Custom emotes saved successfully to your channel!', 'success');
-      } catch (err) {
-        store.showToast(err.message || 'Failed to save emotes to server', 'error');
-      }
-      btn.disabled = false;
-    });
+        document.querySelectorAll('.add-preset-quick-btn').forEach(pb => {
+          pb.disabled = false;
+          pb.className = 'btn btn-sm add-preset-quick-btn btn-cyan';
+          pb.textContent = '+ Add';
+        });
+        store.showToast('All emotes cleared. Click "Save All Emotes" to save changes.', 'info');
+      });
+
+      // SAVE ALL EMOTES BUTTON (Dual-Persistence with loading & feedback)
+      document.getElementById('save-emojis-server-btn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('save-emojis-server-btn');
+        if (!btn) return;
+
+        btn.disabled = true;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = `<span style="display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px;"></span> Saving...`;
+
+        try {
+          const payload = {
+            emojis: customEmojis.map(e => ({
+              name: e.name.toLowerCase(),
+              emojiValue: e.emojiValue,
+              isCustomImage: !!e.isCustomImage
+            }))
+          };
+
+          // 1. Dual persistence: Save locally to localStorage first
+          localStorage.setItem(`orbit_channel_emotes_${channelId}`, JSON.stringify(customEmojis));
+
+          // 2. Save to backend database
+          const res = await dashboardApi.setEmojis(payload);
+          if (Array.isArray(res)) {
+            customEmojis = res;
+            localStorage.setItem(`orbit_channel_emotes_${channelId}`, JSON.stringify(customEmojis));
+          }
+
+          isDirty = false;
+          renderEmotesGrid();
+
+          btn.innerHTML = `✓ Saved to Channel!`;
+          btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+          btn.style.borderColor = '#10b981';
+          store.showToast('Custom emotes successfully saved and active for your channel!', 'success');
+
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.style.background = '';
+            btn.style.borderColor = '';
+            btn.innerHTML = `${Icons.check || '✓'} Save All Emotes (${customEmojis.length}/50)`;
+          }, 2500);
+
+        } catch (err) {
+          console.error('[Studio] Failed to save custom emotes:', err);
+          // Fallback: It is saved in localStorage
+          localStorage.setItem(`orbit_channel_emotes_${channelId}`, JSON.stringify(customEmojis));
+          store.showToast('Emotes saved locally! (Backend note: ' + (err.message || 'Server error') + ')', 'warning');
+          btn.disabled = false;
+          btn.innerHTML = originalHtml;
+        }
+      });
+    }
+
+    renderStudioUI();
 
   } catch (e) {
-    ws.innerHTML = '<div class="empty-state"><h3>Failed to load emotes studio</h3></div>';
+    console.error('[Studio] Emotes studio error:', e);
+    ws.innerHTML = '<div class="empty-state" style="padding:40px 20px;"><h3>Failed to load Emotes Studio</h3><p style="color:var(--color-text-muted);">Please check your network connection and try again.</p></div>';
   }
 }
 

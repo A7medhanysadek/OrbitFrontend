@@ -1,7 +1,7 @@
 /* === SIDEBAR NAV === */
 .sidebar-logo { padding: 18px 20px; display: flex; align-items: center; gap: 0; border-bottom: 1px solid rgba(0,174,189,0.1); }
-.sidebar-logo img { height: 34px; margin-right: -4px; }
-.sidebar-logo .logo-text { font-family: var(--font-display); font-size: 32px; color: var(--color-cyan-neon); letter-spacing: -0.01em; margin-left: 2px; line-height: 1; display: inline-flex; align-items: center; }
+.sidebar-logo img { height: 28px; width: auto; max-height: 28px; object-fit: contain; margin-right: -6px; display: block; flex-shrink: 0; }
+.sidebar-logo .logo-text { font-family: var(--font-display); font-size: 26px; color: var(--color-cyan-neon); letter-spacing: -0.02em; margin-left: 0; line-height: 28px; height: 28px; display: inline-flex; align-items: center; }
 .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
 .sidebar-link { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; color: var(--color-text-muted); font-size: 14px; font-weight: 500; transition: all var(--transition-fast); white-space: nowrap; overflow: hidden; }
 .sidebar-link:hover { background: rgba(0,174,189,0.08); color: var(--color-text-white); }
@@ -238,4 +238,194 @@ html.theme-light .chat-guidelines-banner,
 [data-theme="light"] .chat-guidelines-banner {
   background: rgba(0, 139, 153, 0.08) !important;
   border-color: rgba(0, 139, 153, 0.2) !important;
+}
+
+/* === LIVE CHAT EMOTE VISUALIZER & AUTOCOMPLETE === */
+#chat-emote-visualizer {
+  animation: slide-up 0.15s ease-out;
+}
+.visualizer-emote-chip {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.visualizer-emote-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 8px rgba(0, 242, 254, 0.4);
+}
+#chat-autocomplete-popover {
+  animation: fade-in 0.12s ease-out;
+}
+.chat-autocomplete-item {
+  transition: all 0.12s ease;
+}
+.chat-autocomplete-item:hover {
+  background: rgba(0, 242, 254, 0.15) !important;
+  transform: translateX(2px);
+}
+html.theme-light #chat-emote-visualizer,
+[data-theme="light"] #chat-emote-visualizer {
+  background: #F1F5F9 !important;
+  border-top-color: #E2E8F0 !important;
+}
+html.theme-light .visualizer-emote-chip,
+[data-theme="light"] .visualizer-emote-chip {
+  background: #E2E8F0 !important;
+  border-color: rgba(0, 139, 153, 0.4) !important;
+  color: #0F172A !important;
+}
+html.theme-light #chat-autocomplete-popover,
+[data-theme="light"] #chat-autocomplete-popover {
+  background: #FFFFFF !important;
+  border-color: rgba(0, 139, 153, 0.3) !important;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.15) !important;
+}
+html.theme-light .chat-autocomplete-item,
+[data-theme="light"] .chat-autocomplete-item {
+  background: #F8FAFC !important;
+}
+html.theme-light .chat-autocomplete-item:hover,
+[data-theme="light"] .chat-autocomplete-item:hover {
+  background: rgba(0, 139, 153, 0.1) !important;
+}
+
+/* === STREAM CHAT VIEWPORT & FIXED INPUT CONTAINER === */
+.watch-room-root {
+  height: calc(100vh - var(--topbar-height)) !important;
+  max-height: calc(100vh - var(--topbar-height)) !important;
+  overflow: hidden !important;
+}
+
+.app-content:has(#watch-room-root) {
+  padding: 0 !important;
+  overflow: hidden !important;
+  height: calc(100vh - var(--topbar-height)) !important;
+  max-height: calc(100vh - var(--topbar-height)) !important;
+}
+
+.chat-input-area {
+  height: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+  padding: 10px 12px !important;
+}
+
+#chat-input,
+.chat-rich-input {
+  cursor: text;
+  color: var(--color-text-primary, #fff);
+  word-break: normal !important;
+  white-space: nowrap !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  box-sizing: border-box !important;
+  line-height: 22px !important;
+  padding: 8px 12px !important;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  width: 0 !important;
+  display: block !important;
+}
+
+#chat-input::-webkit-scrollbar,
+.chat-rich-input::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.chat-rich-input:empty:before,
+.chat-rich-input:has(> br:only-child):before {
+  content: attr(data-placeholder);
+  color: var(--color-text-muted, #94a3b8);
+  pointer-events: none;
+  cursor: text;
+  white-space: nowrap;
+}
+
+.chat-rich-input:focus {
+  border-color: rgba(0, 242, 254, 0.4) !important;
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.2);
+}
+.chat-inline-emote {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  padding: 1px 4px;
+  margin: 0 2px;
+  background: rgba(0, 242, 254, 0.12);
+  border: 1px solid rgba(0, 242, 254, 0.3);
+  border-radius: 6px;
+  cursor: default;
+  user-select: all;
+  animation: emote-pop 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.chat-inline-emote img,
+.chat-inline-emote svg {
+  display: block;
+  vertical-align: middle;
+  pointer-events: none;
+}
+html.theme-light .chat-rich-input {
+  background: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+}
+html.theme-light .chat-inline-emote,
+[data-theme="light"] .chat-inline-emote {
+  background: rgba(0, 139, 153, 0.12) !important;
+  border-color: rgba(0, 139, 153, 0.35) !important;
+}
+
+/* === THEATER MODE (Twitch/Kick style) === */
+body.theater-active .app-topbar {
+  display: none !important;
+}
+body.theater-active .app-sidebar {
+  display: none !important;
+}
+body.theater-active .app-main {
+  margin-left: 0 !important;
+  padding: 0 !important;
+  max-width: 100vw !important;
+  width: 100vw !important;
+}
+body.theater-active .watch-room-root {
+  padding: 0 !important;
+  margin: 0 !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  border-radius: 0 !important;
+}
+body.theater-active .watch-layout {
+  grid-template-columns: 1fr 340px !important;
+  height: 100vh !important;
+  gap: 0 !important;
+}
+body.theater-active .watch-main {
+  height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+body.theater-active .player-container {
+  flex: 1 !important;
+  height: 100% !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+}
+body.theater-active .watch-chat-sidebar,
+body.theater-active .chat-panel {
+  height: 100vh !important;
+  border-radius: 0 !important;
+}
+body.theater-active .watch-channel-info,
+body.theater-active .watch-tabs,
+body.theater-active .watch-tab-content {
+  display: none !important;
 }

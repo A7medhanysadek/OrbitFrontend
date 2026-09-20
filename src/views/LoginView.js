@@ -115,7 +115,7 @@ export function setupLoginEvents() {
   };
 
   const setupGoogleAuth = async () => {
-    let clientId = '42595995252-orbit.apps.googleusercontent.com';
+    let clientId = '545213963903-r86huar66abhchnshaapi8tsu294q9hv.apps.googleusercontent.com';
     try {
       const configRes = await authApi.getGoogleClientId();
       if (configRes?.clientId) {

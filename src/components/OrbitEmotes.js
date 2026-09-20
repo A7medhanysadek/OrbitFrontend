@@ -293,6 +293,29 @@ export function getAllPresets() {
 }
 
 /**
+ * Render any channel emote visual given an emote object: { name, emojiValue, isCustomImage }
+ */
+export function renderEmoteVisual(emote, size = 24) {
+  if (!emote) return '';
+  const val = String(emote.emojiValue || '');
+  if (emote.isCustomImage || val.startsWith('data:image') || val.startsWith('http://') || val.startsWith('https://')) {
+    return `<img src="${val}" alt=":${emote.name}:" style="width:${size}px;height:${size}px;object-fit:contain;border-radius:4px;vertical-align:middle;display:inline-block;" />`;
+  }
+  if (val.startsWith('orbit:')) {
+    const key = val.replace('orbit:', '');
+    const svg = OrbitEmotes[key]?.svg || '';
+    if (svg) {
+      return `<span class="orbit-chat-emote" title=":${emote.name}:" style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;vertical-align:middle;">${svg}</span>`;
+    }
+  }
+  if (OrbitEmotes[val]) {
+    const svg = OrbitEmotes[val].svg;
+    return `<span class="orbit-chat-emote" title=":${emote.name}:" style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;vertical-align:middle;">${svg}</span>`;
+  }
+  return `<span style="font-size:${size * 0.9}px;line-height:1;display:inline-flex;vertical-align:middle;">${val || '✨'}</span>`;
+}
+
+/**
  * Render a Saturn ring avatar wrapper for live channel profile pictures.
  * @param {Object} opts
  * @param {string} opts.src - Profile picture URL
