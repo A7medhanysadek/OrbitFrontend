@@ -212,9 +212,9 @@ function renderResults(q) {
               </div>
               <div class="stream-info">
                 <div class="streamer-row">
-                  <div class="streamer-avatar">${s.profilePictureUrl ? `<img src="${s.profilePictureUrl}" />` : (s.streamerName || 'S')[0].toUpperCase()}</div>
+                  <div class="streamer-avatar">${s.profilePictureUrl ? `<img src="${s.profilePictureUrl}" />` : (s.channelName || s.streamerName || 'S')[0].toUpperCase()}</div>
                   <div style="flex:1;overflow:hidden;">
-                    <div class="streamer-name">${escapeHtml(s.streamerName || 'Streamer')} ${Icons.checkCircle}</div>
+                    <div class="streamer-name">${escapeHtml(s.channelName || s.streamerName || 'Streamer')} ${Icons.checkCircle}</div>
                     <div style="font-size:12px;color:var(--color-cyan-primary);">${escapeHtml(s.categoryName || 'General')}</div>
                   </div>
                 </div>

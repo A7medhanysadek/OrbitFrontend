@@ -196,7 +196,7 @@ function renderLiveStreams(container, streams) {
   container.innerHTML = `
     <div class="streams-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:20px;">
       ${streams.map(s => {
-        const streamerLetter = (s.streamerName || s.channelName || 'S')[0].toUpperCase();
+        const streamerLetter = (s.channelName || s.streamerName || 'S')[0].toUpperCase();
         return `
           <div class="card stream-card hover-lift" data-stream-id="${s.id}" style="cursor:pointer;overflow:hidden;border-radius:12px;background:var(--color-space-panel, #0f1424);border:1px solid rgba(255,255,255,0.08);">
             <div class="stream-thumb" style="position:relative;aspect-ratio:16/9;background:#000;overflow:hidden;">
@@ -218,7 +218,7 @@ function renderLiveStreams(container, streams) {
                   ${escapeHtml(s.title || 'Live Stream')}
                 </div>
                 <div style="font-size:12px;color:var(--color-text-muted,#aaa);margin-bottom:4px;">
-                  ${escapeHtml(s.streamerName || s.channelName || 'Streamer')}
+                  ${escapeHtml(s.channelName || s.streamerName || 'Streamer')}
                 </div>
                 ${s.categoryName ? `<span class="badge-category" style="font-size:10px;padding:1px 6px;">${escapeHtml(s.categoryName)}</span>` : ''}
               </div>

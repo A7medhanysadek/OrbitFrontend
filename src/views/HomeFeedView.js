@@ -206,12 +206,12 @@ function renderHero() {
             <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
               ${renderSaturnAvatar({
                 src: currentStream.profilePictureUrl,
-                fallback: (currentStream.streamerName || 'S')[0].toUpperCase(),
+                fallback: (currentStream.channelName || currentStream.streamerName || 'S')[0].toUpperCase(),
                 size: 'lg'
               })}
               <div>
                 <div style="font-weight:700;font-size:16px;color:var(--color-text-white);display:flex;align-items:center;gap:6px;">
-                  <span>${escapeHtml(currentStream.streamerName || 'Streamer')}</span>
+                  <span>${escapeHtml(currentStream.channelName || currentStream.streamerName || 'Streamer')}</span>
                   <span style="color:var(--color-cyan-neon);">${Icons.checkCircle || '✓'}</span>
                 </div>
                 <div style="font-size:12px;color:var(--color-text-muted);margin-top:2px;">
@@ -365,12 +365,12 @@ async function loadStreams() {
           <div class="streamer-row" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
             ${renderSaturnAvatar({
               src: s.profilePictureUrl,
-              fallback: (s.streamerName || 'S')[0].toUpperCase(),
+              fallback: (s.channelName || s.streamerName || 'S')[0].toUpperCase(),
               size: 'sm'
             })}
             <div style="flex:1;overflow:hidden;">
               <div class="streamer-name" style="font-size:13px;font-weight:700;color:var(--color-text-primary);display:flex;align-items:center;gap:4px;">
-                <span>${escapeHtml(s.streamerName || 'Streamer')}</span>
+                <span>${escapeHtml(s.channelName || s.streamerName || 'Channel')}</span>
                 <span style="color:var(--color-cyan-neon);font-size:11px;">${Icons.checkCircle || '✓'}</span>
               </div>
               <div style="font-size:11px;color:var(--color-cyan-primary);">${escapeHtml(s.categoryName || 'General')}</div>
@@ -489,8 +489,9 @@ async function loadTrendingClips() {
           <div style="font-weight:600;font-size:13px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
             ${escapeHtml(c.title || 'Highlight Clip')}
           </div>
-          <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">
-            Clipped by @${escapeHtml(c.creatorUsername || 'user')}
+          <div style="font-size:11px;color:var(--color-cyan-primary);margin-top:4px;display:flex;align-items:center;justify-content:space-between;">
+            <span>${escapeHtml(c.channelName || 'Channel')}</span>
+            <span style="color:var(--color-text-muted);font-size:10px;">by @${escapeHtml(c.creatorName || c.creatorUsername || 'user')}</span>
           </div>
         </div>
       </div>

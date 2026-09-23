@@ -3,6 +3,7 @@ import { Icons } from './CosmicIcons.js';
 import { clearTokens, setCurrentUser } from '../api/client.js';
 import { ORBIT_LOGO } from '../utils/mediaImage.js';
 import { notificationApi } from '../api/notification.js';
+import { channelApi } from '../api/channel.js';
 import { renderSaturnAvatar } from './OrbitEmotes.js';
 
 export function renderSidebar() {
@@ -77,10 +78,10 @@ export function renderSidebar() {
       <div class="sidebar-footer">
         <div class="sidebar-user" id="sidebar-user-btn">
           <div class="user-avatar">
-            ${user.profilePictureUrl ? `<img src="${user.profilePictureUrl}" alt="" />` : (user.fullName || user.username || 'U')[0].toUpperCase()}
+            ${user.profilePictureUrl ? `<img src="${user.profilePictureUrl}" alt="" />` : (user.channelName || user.fullName || user.username || 'U')[0].toUpperCase()}
           </div>
           <div class="user-info">
-            <div class="user-name">${user.username || user.fullName || 'User'}</div>
+            <div class="user-name">${user.channelName || user.username || user.fullName || 'User'}</div>
             <div class="user-role">${isAdmin ? 'Admin' : 'Viewer'}</div>
           </div>
         </div>
@@ -130,9 +131,9 @@ export function renderTopbar() {
         <div class="dropdown" id="user-dropdown">
           <button class="topbar-user-btn" id="topbar-user-trigger">
             <div class="mini-avatar">
-              ${user.profilePictureUrl ? `<img src="${user.profilePictureUrl}" alt="" />` : (user.fullName || user.username || 'U')[0].toUpperCase()}
+              ${user.profilePictureUrl ? `<img src="${user.profilePictureUrl}" alt="" />` : (user.channelName || user.fullName || user.username || 'U')[0].toUpperCase()}
             </div>
-            <span style="font-size:13px;font-weight:500;color:#fff;">${user.username || 'User'}</span>
+            <span style="font-size:13px;font-weight:500;color:#fff;">${user.channelName || user.username || 'User'}</span>
             ${Icons.chevronDown}
           </button>
           <div class="dropdown-menu hidden" id="user-dropdown-menu">
@@ -149,6 +150,17 @@ export function renderTopbar() {
 }
 
 export function setupNavEvents() {
+  const state = store.getState();
+  const user = state.currentUser;
+  if (user && !user.channelName && !user._checkingChannel) {
+    user._checkingChannel = true;
+    channelApi.getMyChannel().then(ch => {
+      if (ch && ch.channelName) {
+        store.setCurrentUser({ ...store.getState().currentUser, channelName: ch.channelName, channelId: ch.id });
+      }
+    }).catch(() => {});
+  }
+
   // Sidebar nav links
   document.querySelectorAll('.sidebar-link[data-nav]').forEach(link => {
     link.addEventListener('click', () => store.navigate(link.dataset.nav));

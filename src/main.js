@@ -76,7 +76,7 @@ function renderApp() {
           ${renderSidebar()}
           <div class="app-main ${collapsed ? 'sidebar-collapsed' : ''}">
             ${renderTopbar()}
-            <div class="app-content page-enter" id="view-content">
+            <div class="app-content page-enter ${currentView === 'watch' ? 'full-width' : ''}" id="view-content">
               ${entry.render()}
             </div>
           </div>

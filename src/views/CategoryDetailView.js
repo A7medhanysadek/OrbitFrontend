@@ -60,7 +60,7 @@ async function loadContent(slug) {
       container.innerHTML = `<div class="streams-grid">${streams.map(s => `
         <div class="card stream-card hover-lift" data-sid="${s.id}">
           <div class="stream-thumb"><img src="${DEFAULT_BANNER}" data-thumb-src="${s.thumbnailUrl || ''}" /><div style="position:absolute;top:10px;left:10px;display:flex;gap:6px;"><span class="badge-live">LIVE</span><span class="badge-viewers">${s.viewerCount || 0}</span></div></div>
-          <div class="stream-info"><div class="streamer-row"><div class="streamer-avatar">${(s.streamerName||'S')[0].toUpperCase()}</div><div><div class="streamer-name">${s.streamerName||'Streamer'}</div></div></div><div class="stream-title">${s.title||'Untitled'}</div></div>
+          <div class="stream-info"><div class="streamer-row"><div class="streamer-avatar">${(s.channelName||s.streamerName||'S')[0].toUpperCase()}</div><div><div class="streamer-name">${s.channelName||s.streamerName||'Streamer'}</div></div></div><div class="stream-title">${s.title||'Untitled'}</div></div>
         </div>
       `).join('')}</div>`;
       attachMediaImages(container);

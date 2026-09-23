@@ -1,4 +1,14 @@
-export const API_BASE = (typeof window !== 'undefined' && window.localStorage && localStorage.getItem('orbit_api_base')) || 'https://orbit.tryasp.net';
+export const API_BASE = (typeof window !== 'undefined' && window.localStorage && localStorage.getItem('orbit_api_base')) || 
+  (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:5050' : 'https://orbit.tryasp.net');
+
+if (typeof window !== 'undefined') {
+  window.setOrbitApiBase = (url) => {
+    if (url) localStorage.setItem('orbit_api_base', url);
+    else localStorage.removeItem('orbit_api_base');
+    console.log('[Orbit] API Base set to:', url || 'Default');
+    window.location.reload();
+  };
+}
 
 export function getAuthToken() {
   return localStorage.getItem('orbit_access_token');
@@ -91,7 +101,8 @@ export async function apiClient(endpoint, options = {}) {
       const refreshRes = await fetch(`${API_BASE}/api/Auth/refresh-token`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ refreshToken: getRefreshToken() })
       });
@@ -115,6 +126,8 @@ export async function apiClient(endpoint, options = {}) {
           'Authorization': `Bearer ${newAccessToken}`
         };
         return apiClient(endpoint, { ...options, headers: retryHeaders });
+      } else {
+        clearTokens();
       }
     } catch (e) {
       console.warn('Failed to refresh token', e);
@@ -128,7 +141,11 @@ export async function apiClient(endpoint, options = {}) {
       const errorData = await response.json();
       errorMsg = errorData.message || errorData.error || errorData.title || JSON.stringify(errorData);
     } catch (e) {
-      errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+      if (response.status === 401) {
+        errorMsg = 'Your session has expired or is unauthorized. Please log in again.';
+      } else {
+        errorMsg = `HTTP ${response.status}: ${response.statusText || 'Request failed'}`;
+      }
     }
     const err = new Error(errorMsg);
     err.status = response.status;

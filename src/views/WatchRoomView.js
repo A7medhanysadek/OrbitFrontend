@@ -65,10 +65,10 @@ function getRoleBadge(msg, senderName) {
   const badge = String(msg?.senderBadge || msg?.SenderBadge || '');
   const role = String(msg?.senderRole || msg?.SenderRole || '').toLowerCase();
 
-  if (isBroadcaster || badge.includes('👑') || role === 'broadcaster' || role === 'streamer') {
+  if (isBroadcaster || badge.includes('👑') || badge.includes('🌍') || role === 'broadcaster' || role === 'streamer') {
     return `<span class="chat-role-badge badge-broadcaster" title="Broadcaster" style="background:linear-gradient(135deg,#FFD700,#FFA500);color:#000;font-size:10px;font-weight:800;padding:2px 5px;border-radius:4px;display:inline-flex;align-items:center;gap:2px;box-shadow:0 0 6px rgba(255,215,0,0.5);margin-right:4px;">👑 HOST</span>`;
   }
-  if (badge.includes('🛡️') || role === 'moderator' || role === 'mod') {
+  if (badge.includes('🛡️') || badge.includes('🪐') || role === 'moderator' || role === 'mod') {
     return `<span class="chat-role-badge badge-mod" title="Moderator" style="background:linear-gradient(135deg,#10B981,#059669);color:#fff;font-size:10px;font-weight:800;padding:2px 5px;border-radius:4px;display:inline-flex;align-items:center;gap:2px;box-shadow:0 0 6px rgba(16,185,129,0.4);margin-right:4px;">🛡️ MOD</span>`;
   }
   if (badge.includes('⚡') || role === 'admin') {
@@ -76,6 +76,9 @@ function getRoleBadge(msg, senderName) {
   }
   if (badge.includes('💎') || role === 'vip') {
     return `<span class="chat-role-badge badge-vip" title="VIP" style="background:linear-gradient(135deg,#00f2fe,#00AEBD);color:#000;font-size:10px;font-weight:800;padding:2px 5px;border-radius:4px;display:inline-flex;align-items:center;gap:2px;box-shadow:0 0 6px rgba(0,242,254,0.4);margin-right:4px;">💎 VIP</span>`;
+  }
+  if (badge.includes('⭐') || role === 'og') {
+    return `<span class="chat-role-badge badge-og" title="OG Member" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-size:10px;font-weight:800;padding:2px 5px;border-radius:4px;display:inline-flex;align-items:center;gap:2px;box-shadow:0 0 6px rgba(245,158,11,0.4);margin-right:4px;">⭐ OG</span>`;
   }
   if (badge) {
     return `<span style="font-size:11px;margin-right:4px;">${escapeHtml(badge)}</span>`;
@@ -258,10 +261,15 @@ export function checkModerationPrivileges(user, stream) {
   if (user.isAdmin || user.isModerator) return true;
   if (stream) {
     const uName = user.username?.toLowerCase() || '';
+    const fName = user.fullName?.toLowerCase() || '';
     if (uName && (
       uName === stream.streamerName?.toLowerCase() ||
       uName === stream.channelName?.toLowerCase() ||
-      uName === stream.channel?.ownerUsername?.toLowerCase()
+      uName === stream.channel?.ownerUsername?.toLowerCase() ||
+      uName === stream.streamerUsername?.toLowerCase()
+    )) return true;
+    if (fName && (
+      fName === stream.streamerName?.toLowerCase()
     )) return true;
     if (user.id && (user.id === stream.userId || user.id === stream.streamerId || user.id === stream.channel?.ownerId)) return true;
     if (user.channelId && (user.channelId === stream.channelId || user.channelId === stream.channel?.id)) return true;
@@ -276,11 +284,11 @@ export function renderWatchRoomView() {
   const isModOrStreamer = checkModerationPrivileges(currentUser, stream);
 
   return `
-    <div id="watch-room-root" class="watch-room-root watch-layout" style="display:flex;gap:0;margin:-24px;height:calc(100vh - var(--topbar-height));max-height:calc(100vh - var(--topbar-height));overflow:hidden;">
+    <div id="watch-room-root" class="watch-room-root watch-layout" style="display:flex;gap:0;width:100%;height:calc(100vh - var(--topbar-height));max-height:calc(100vh - var(--topbar-height));overflow:hidden;">
       <!-- Video + Info Column -->
       <div class="watch-main" style="flex:1;display:flex;flex-direction:column;overflow-y:auto;height:100%;min-width:0;">
-        <div class="player-wrapper player-container" id="player-container" style="position:relative;border-radius:0;aspect-ratio:16/9;background:#000;overflow:hidden;">
-          <video id="stream-video" style="width:100%;height:100%;background:#000;" autoplay playsinline></video>
+        <div class="player-wrapper player-container" id="player-container" style="position:relative;border-radius:0;background:#000;overflow:hidden;">
+          <video id="stream-video" style="width:100%;height:100%;background:#000;object-fit:contain;" autoplay playsinline></video>
 
           <!-- Interaction Shield: Captures 100% of mouse/hover interactions so YouTube iframe never shows hover options -->
           <div id="orbit-player-shield" style="position:absolute;inset:0;z-index:4;cursor:pointer;background:rgba(0,0,0,0.001);pointer-events:auto;"></div>
@@ -382,11 +390,11 @@ export function renderWatchRoomView() {
 
           <div id="watch-channel-info" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--color-space-panel);border-radius:var(--radius-card);border:1px solid rgba(0,174,189,0.12);cursor:pointer;">
             <div style="width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--color-cyan-primary),var(--color-cyan-neon));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:#000;overflow:hidden;flex-shrink:0;" id="watch-avatar">
-              ${(stream?.profilePictureUrl || stream?.channelPhotoUrl) ? `<img src="${stream.profilePictureUrl || stream.channelPhotoUrl}" style="width:100%;height:100%;object-fit:cover;" />` : (stream?.streamerName || stream?.channelName || 'S')[0].toUpperCase()}
+              ${(stream?.profilePictureUrl || stream?.channelPhotoUrl) ? `<img src="${stream.profilePictureUrl || stream.channelPhotoUrl}" style="width:100%;height:100%;object-fit:cover;" />` : (stream?.channelName || stream?.streamerName || 'S')[0].toUpperCase()}
             </div>
             <div style="flex:1;overflow:hidden;">
               <div style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:6px;" id="watch-streamer">
-                <span>${escapeHtml(stream?.streamerName || 'Streamer')}</span> ${Icons.checkCircle}
+                <span>${escapeHtml(stream?.channelName || stream?.streamerName || 'Streamer')}</span> ${Icons.checkCircle}
               </div>
               <div style="font-size:13px;color:var(--color-text-muted);" id="watch-desc">Click to visit channel profile</div>
             </div>
@@ -491,7 +499,9 @@ export function renderWatchRoomView() {
         <div class="chat-input-area" style="height:60px;min-height:60px;max-height:60px;flex-shrink:0;box-sizing:border-box;padding:10px 12px;border-top:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.25);display:flex;align-items:center;">
           ${currentUser ? `
             <div style="width:100%;display:flex;gap:6px;align-items:center;position:relative;">
-              <div id="chat-input" contenteditable="true" role="textbox" aria-multiline="false" spellcheck="false" data-placeholder="Type a message... (e.g. :code:)" class="input-dark chat-rich-input" style="flex:1 1 0%;min-width:0;width:0;height:40px;min-height:40px;max-height:40px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;word-break:normal;padding:8px 12px;font-size:13px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);outline:none;line-height:22px;box-sizing:border-box;"></div>
+              <div style="flex:1 1 0%;min-width:0;width:0;position:relative;overflow:hidden;">
+                <div id="chat-input" contenteditable="true" role="textbox" aria-multiline="false" spellcheck="false" data-placeholder="Type a message... (e.g. :code:)" class="input-dark chat-rich-input" style="width:100%;min-width:100%;max-width:100%;height:40px;min-height:40px;max-height:40px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;word-break:normal;padding:8px 12px;font-size:13px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);outline:none;line-height:22px;box-sizing:border-box;"></div>
+              </div>
               <button id="chat-emote-btn" type="button" title="Channel Emotes" style="width:38px;height:38px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--color-cyan-neon);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;transition:all 0.15s;flex-shrink:0;">
                 😊
               </button>
@@ -694,23 +704,15 @@ export function setupWatchRoomEvents() {
   const toggleTheater = () => {
     isTheater = !isTheater;
     const watchRoot = document.getElementById('watch-room-root') || playerContainer?.closest('.watch-room-root');
-    const appSidebar = document.getElementById('app-sidebar') || document.querySelector('.app-sidebar');
-    const appMain = document.querySelector('.app-main');
 
     if (isTheater) {
       document.body.classList.add('theater-active');
       watchRoot?.classList.add('watch-theater-mode');
-      if (appSidebar) appSidebar.classList.add('collapsed');
-      if (appMain) appMain.classList.add('sidebar-collapsed');
       theaterBtn?.classList.add('active');
       store.showToast('Theater mode enabled (T)', 'info');
     } else {
       document.body.classList.remove('theater-active');
       watchRoot?.classList.remove('watch-theater-mode');
-      if (!store.getState().sidebarCollapsed) {
-        if (appSidebar) appSidebar.classList.remove('collapsed');
-        if (appMain) appMain.classList.remove('sidebar-collapsed');
-      }
       theaterBtn?.classList.remove('active');
       store.showToast('Theater mode disabled (T)', 'info');
     }
@@ -1351,7 +1353,7 @@ function setupFollowBtn(stream) {
   followBtn.innerHTML = isFollowing ? `${Icons.followFilled} Following` : `${Icons.follow} Follow`;
   followBtn.onclick = async () => {
     followBtn.disabled = true;
-    const chName = stream.streamerName || stream.channelName || 'Streamer';
+    const chName = stream.channelName || stream.streamerName || 'Streamer';
     const nowFollowing = await store.toggleFollow(stream.channelId, chName);
     followBtn.className = `btn btn-sm follow-btn ${nowFollowing ? 'following' : 'not-following'}`;
     followBtn.innerHTML = nowFollowing ? `${Icons.followFilled} Following` : `${Icons.follow} Follow`;
@@ -1370,7 +1372,7 @@ function updateStreamUI(stream) {
   if (viewersEl) viewersEl.textContent = stream.viewerCount || 0;
 
   const streamerEl = document.getElementById('watch-streamer');
-  if (streamerEl) streamerEl.innerHTML = `<span>${escapeHtml(stream.streamerName || stream.channelName || 'Streamer')}</span> ${Icons.checkCircle}`;
+  if (streamerEl) streamerEl.innerHTML = `<span>${escapeHtml(stream.channelName || stream.streamerName || 'Streamer')}</span> ${Icons.checkCircle}`;
 
   const avatarEl = document.getElementById('watch-avatar');
   if (avatarEl) {
@@ -1378,7 +1380,7 @@ function updateStreamUI(stream) {
     if (avatarPic && avatarPic.startsWith('http')) {
       avatarEl.innerHTML = `<img src="${avatarPic}" style="width:100%;height:100%;object-fit:cover;" />`;
     } else {
-      avatarEl.textContent = (stream.streamerName || stream.channelName || 'S')[0].toUpperCase();
+      avatarEl.textContent = (stream.channelName || stream.streamerName || 'S')[0].toUpperCase();
     }
   }
 }
@@ -1579,12 +1581,19 @@ async function initPlayer(stream) {
   }
 }
 
-async function navigateToUserChannel(username) {
-  if (!username) return;
+async function navigateToUserChannel(username, displayName) {
+  const query = username || displayName;
+  if (!query) return;
   try {
-    const results = await channelApi.search(username);
+    const results = await channelApi.search(query);
     const list = Array.isArray(results) ? results : (results?.items || results?.channels || []);
-    const match = list.find(c => (c.channelName || c.streamerName || c.name || '').toLowerCase() === username.toLowerCase()) || list[0];
+    const match = list.find(c => 
+      (c.channelName || '').toLowerCase() === (username || '').toLowerCase() ||
+      (c.channelName || '').toLowerCase() === (displayName || '').toLowerCase() ||
+      (c.streamerName || '').toLowerCase() === (username || '').toLowerCase() ||
+      (c.streamerName || '').toLowerCase() === (displayName || '').toLowerCase() ||
+      (c.ownerUsername || '').toLowerCase() === (username || '').toLowerCase()
+    ) || list[0];
     if (match && match.id) {
       store.navigate('channel', { channelId: match.id });
       return;
@@ -1592,7 +1601,7 @@ async function navigateToUserChannel(username) {
   } catch (e) {
     console.warn('Channel lookup failed:', e);
   }
-  store.showToast(`No channel found for ${username}`, 'info');
+  store.showToast(`No channel found for ${displayName || username}`, 'info');
 }
 
 async function initChat(channelId, streamId) {
@@ -1607,11 +1616,17 @@ async function initChat(channelId, streamId) {
   const chId = channelId || activeS?.channelId || activeS?.channel?.id;
   const userRoles = Array.isArray(currentUser?.roles) ? currentUser.roles : (currentUser?.role ? [currentUser.role] : []);
   const isBroadcaster = Boolean(activeS && currentUser && (
-    currentUser.username?.toLowerCase() === activeS.streamerName?.toLowerCase() ||
-    currentUser.username?.toLowerCase() === activeS.channelName?.toLowerCase() ||
-    currentUser.username?.toLowerCase() === activeS.channel?.ownerUsername?.toLowerCase() ||
+    currentUser.id === activeS.streamerId ||
     currentUser.id === activeS.userId ||
-    currentUser.channelId === activeS.channelId
+    (currentUser.username && (
+      currentUser.username.toLowerCase() === activeS.streamerName?.toLowerCase() ||
+      currentUser.username.toLowerCase() === activeS.channelName?.toLowerCase() ||
+      currentUser.username.toLowerCase() === activeS.channel?.ownerUsername?.toLowerCase() ||
+      currentUser.username.toLowerCase() === activeS.streamerUsername?.toLowerCase()
+    )) ||
+    (currentUser.fullName && (
+      currentUser.fullName.toLowerCase() === activeS.streamerName?.toLowerCase()
+    ))
   ));
 
   // Ensure Emotes Only toggle button exists if user has moderation privileges
@@ -1676,15 +1691,37 @@ async function initChat(channelId, streamId) {
   const modActTimeout = document.getElementById('mod-act-timeout');
   const modActBan = document.getElementById('mod-act-ban');
 
-  let activeModTarget = { username: '', msgId: null };
+  let activeModTarget = { username: '', displayName: '', userId: '', msgId: null };
+
+  const channelMods = new Set();
+  const channelTimeouts = new Set();
+  const channelBans = new Set();
+
+  const loadChannelModerators = async () => {
+    const chId = channelId || currentChannelId || store.getState().activeStream?.channelId;
+    if (!chId) return;
+    try {
+      const mods = await channelApi.getModerators(chId);
+      if (Array.isArray(mods)) {
+        channelMods.clear();
+        mods.forEach(m => {
+          if (m.userId) channelMods.add(String(m.userId).toLowerCase());
+          if (m.username) channelMods.add(String(m.username).toLowerCase());
+          if (m.fullName) channelMods.add(String(m.fullName).toLowerCase());
+        });
+      }
+    } catch (_) {}
+  };
+  loadChannelModerators();
 
   messagesEl.addEventListener('click', (e) => {
     // 1. Avatar link clicked: navigate directly to chatter's channel
     const avatarLink = e.target.closest('.chat-avatar-link');
     if (avatarLink) {
       e.stopPropagation();
-      const uname = avatarLink.dataset.username;
-      if (uname) navigateToUserChannel(uname);
+      const uname = avatarLink.dataset.username || avatarLink.dataset.displayName;
+      const dName = avatarLink.dataset.displayName || uname;
+      if (uname) navigateToUserChannel(uname, dName);
       return;
     }
 
@@ -1693,37 +1730,57 @@ async function initChat(channelId, streamId) {
     if (!userEl) return;
 
     e.stopPropagation();
-    const uname = userEl.dataset.username;
+    const uname = userEl.dataset.username || userEl.dataset.displayName;
+    const displayName = userEl.dataset.displayName || uname;
+    const uid = userEl.dataset.userId || '';
     const mid = userEl.dataset.msgId ? parseInt(userEl.dataset.msgId) : null;
-    if (!uname) return;
+    if (!uname && !displayName && !uid) return;
 
     if (!isModOrStreamer) {
       // Normal viewer clicking username: navigate to their channel
-      navigateToUserChannel(uname);
+      navigateToUserChannel(uname, displayName);
       return;
     }
 
     // Don't show mod popover on oneself
-    if (currentUser && uname.toLowerCase() === currentUser.username?.toLowerCase()) {
-      navigateToUserChannel(uname);
+    if (currentUser && (
+      (uid && uid === currentUser.id) ||
+      (uname && uname.toLowerCase() === currentUser.username?.toLowerCase()) ||
+      (currentUser.fullName && displayName.toLowerCase() === currentUser.fullName.toLowerCase())
+    )) {
+      navigateToUserChannel(uname, displayName);
       return;
     }
 
-    activeModTarget = { username: uname, msgId: mid };
-    if (modPopoverUser) modPopoverUser.textContent = uname;
+    activeModTarget = { username: uname, displayName: displayName, userId: uid, msgId: mid };
+    if (modPopoverUser) modPopoverUser.textContent = displayName;
     if (modActDel) modActDel.style.display = mid ? 'flex' : 'none';
 
     // Inspect user's actual role/badges in chat
     const parentMsg = userEl.closest('.chat-msg') || userEl.parentElement;
     const activeS = store.getState().activeStream;
     const isTargetBroadcaster = Boolean(parentMsg?.querySelector('.badge-broadcaster')) || (activeS && (
+      (uid && (uid === activeS.streamerId || uid === activeS.userId)) ||
       uname.toLowerCase() === activeS.streamerName?.toLowerCase() ||
+      displayName.toLowerCase() === activeS.streamerName?.toLowerCase() ||
       uname.toLowerCase() === activeS.channelName?.toLowerCase() ||
-      uname.toLowerCase() === activeS.channel?.ownerUsername?.toLowerCase()
+      displayName.toLowerCase() === activeS.channelName?.toLowerCase() ||
+      uname.toLowerCase() === activeS.channel?.ownerUsername?.toLowerCase() ||
+      uname.toLowerCase() === activeS.streamerUsername?.toLowerCase()
     ));
-    const isTargetMod = Boolean(parentMsg?.querySelector('.badge-mod'));
+
+    const targetUserKey = (uname || '').toLowerCase();
+    const targetNameKey = (displayName || '').toLowerCase();
+    const targetIdKey = (uid || '').toLowerCase();
+
+    const isTargetMod = channelMods.has(targetIdKey) ||
+      channelMods.has(targetUserKey) ||
+      channelMods.has(targetNameKey) ||
+      Boolean(parentMsg?.querySelector('.badge-mod'));
+
     const isTargetAdmin = Boolean(parentMsg?.querySelector('.badge-admin'));
     const isTargetVip = Boolean(parentMsg?.querySelector('.badge-vip'));
+    const isTargetOg = Boolean(parentMsg?.querySelector('.badge-og'));
 
     if (modPopoverBadge) {
       if (isTargetBroadcaster) {
@@ -1738,18 +1795,22 @@ async function initChat(channelId, streamId) {
       } else if (isTargetVip) {
         modPopoverBadge.textContent = '💎';
         modPopoverBadge.title = 'VIP';
+      } else if (isTargetOg) {
+        modPopoverBadge.textContent = '⭐';
+        modPopoverBadge.title = 'OG Member';
       } else {
         modPopoverBadge.textContent = '👤';
         modPopoverBadge.title = 'Viewer';
       }
     }
 
-    // Show "Hire as Moderator" / "Dismiss Moderator" only if broadcaster or admin
-    const canHire = isBroadcaster || userRoles.some(r => /^admin$/i.test(r)) || currentUser?.isAdmin;
+    // STRICT REQUIREMENT: Only the channel owner can hire or dismiss a moderator. NO moderator can hire or dismiss a moderator!
+    const canHire = isBroadcaster;
     if (modActHire) {
       if (!canHire || isTargetBroadcaster) {
         modActHire.style.display = 'none';
       } else if (isTargetMod) {
+        // If user is already a moderator, remove the "Hire as Moderator" option and replace with "Dismiss Moderator"
         modActHire.style.display = 'flex';
         modActHire.dataset.action = 'dismiss';
         modActHire.innerHTML = '🚫 Dismiss Moderator';
@@ -1764,6 +1825,112 @@ async function initChat(channelId, streamId) {
         modActHire.style.borderColor = 'rgba(0,242,254,0.3)';
         modActHire.style.color = 'var(--color-cyan-neon)';
       }
+    }
+
+    // Timeout status initial rendering
+    const isTargetTimedOut = channelTimeouts.has(targetUserKey) || channelTimeouts.has(targetNameKey);
+    if (modActTimeout) {
+      if (isTargetTimedOut) {
+        modActTimeout.dataset.action = 'remove-timeout';
+        modActTimeout.innerHTML = '⏱️ Remove Timeout';
+        modActTimeout.style.background = 'rgba(16,185,129,0.15)';
+        modActTimeout.style.borderColor = 'rgba(16,185,129,0.35)';
+        modActTimeout.style.color = '#34d399';
+      } else {
+        modActTimeout.dataset.action = 'timeout';
+        modActTimeout.innerHTML = '⏱️ Timeout User (5m)';
+        modActTimeout.style.background = 'rgba(245,158,11,0.15)';
+        modActTimeout.style.borderColor = 'rgba(245,158,11,0.35)';
+        modActTimeout.style.color = '#fbbf24';
+      }
+    }
+
+    // Ban status initial rendering
+    const isTargetBanned = channelBans.has(targetUserKey) || channelBans.has(targetNameKey);
+    if (modActBan) {
+      if (isTargetBanned) {
+        modActBan.dataset.action = 'unban';
+        modActBan.innerHTML = '✅ Unban User';
+        modActBan.style.background = 'rgba(16,185,129,0.15)';
+        modActBan.style.borderColor = 'rgba(16,185,129,0.35)';
+        modActBan.style.color = '#34d399';
+      } else {
+        modActBan.dataset.action = 'ban';
+        modActBan.innerHTML = '🚫 Ban from Channel';
+        modActBan.style.background = 'rgba(239,68,68,0.18)';
+        modActBan.style.borderColor = 'rgba(239,68,68,0.4)';
+        modActBan.style.color = '#f87171';
+      }
+    }
+
+    // Live backend verification of target user's moderation status
+    const targetChId = currentChannelId || channelId || activeS?.channelId || activeS?.channel?.id;
+    if (targetChId && uname) {
+      moderationApi.getUserStatus(targetChId, uname).then(status => {
+        if (!status || activeModTarget.username !== uname) return;
+        if (status.isModerator) {
+          channelMods.add(targetUserKey);
+          if (targetIdKey) channelMods.add(targetIdKey);
+          if (modPopoverBadge && !isTargetBroadcaster) {
+            modPopoverBadge.textContent = '🛡️';
+            modPopoverBadge.title = 'Moderator';
+          }
+          if (canHire && !isTargetBroadcaster && modActHire) {
+            modActHire.style.display = 'flex';
+            modActHire.dataset.action = 'dismiss';
+            modActHire.innerHTML = '🚫 Dismiss Moderator';
+            modActHire.style.background = 'rgba(239,68,68,0.12)';
+            modActHire.style.borderColor = 'rgba(239,68,68,0.3)';
+            modActHire.style.color = '#f87171';
+          }
+        } else {
+          channelMods.delete(targetUserKey);
+          if (canHire && !isTargetBroadcaster && modActHire) {
+            modActHire.style.display = 'flex';
+            modActHire.dataset.action = 'hire';
+            modActHire.innerHTML = '🛡️ Hire as Moderator';
+            modActHire.style.background = 'rgba(0,242,254,0.12)';
+            modActHire.style.borderColor = 'rgba(0,242,254,0.3)';
+            modActHire.style.color = 'var(--color-cyan-neon)';
+          }
+        }
+
+        if (modActTimeout) {
+          if (status.isTimedOut) {
+            channelTimeouts.add(targetUserKey);
+            modActTimeout.dataset.action = 'remove-timeout';
+            modActTimeout.innerHTML = '⏱️ Remove Timeout';
+            modActTimeout.style.background = 'rgba(16,185,129,0.15)';
+            modActTimeout.style.borderColor = 'rgba(16,185,129,0.35)';
+            modActTimeout.style.color = '#34d399';
+          } else {
+            channelTimeouts.delete(targetUserKey);
+            modActTimeout.dataset.action = 'timeout';
+            modActTimeout.innerHTML = '⏱️ Timeout User (5m)';
+            modActTimeout.style.background = 'rgba(245,158,11,0.15)';
+            modActTimeout.style.borderColor = 'rgba(245,158,11,0.35)';
+            modActTimeout.style.color = '#fbbf24';
+          }
+        }
+
+        if (modActBan) {
+          if (status.isBanned) {
+            channelBans.add(targetUserKey);
+            modActBan.dataset.action = 'unban';
+            modActBan.innerHTML = '✅ Unban User';
+            modActBan.style.background = 'rgba(16,185,129,0.15)';
+            modActBan.style.borderColor = 'rgba(16,185,129,0.35)';
+            modActBan.style.color = '#34d399';
+          } else {
+            channelBans.delete(targetUserKey);
+            modActBan.dataset.action = 'ban';
+            modActBan.innerHTML = '🚫 Ban from Channel';
+            modActBan.style.background = 'rgba(239,68,68,0.18)';
+            modActBan.style.borderColor = 'rgba(239,68,68,0.4)';
+            modActBan.style.color = '#f87171';
+          }
+        }
+      }).catch(() => {});
     }
 
     if (modPopover) {
@@ -1792,23 +1959,30 @@ async function initChat(channelId, streamId) {
 
   modActHire?.addEventListener('click', async (e) => {
     e.stopPropagation();
-    const uname = activeModTarget.username;
+    const uname = activeModTarget.username || activeModTarget.displayName || activeModTarget.userId;
+    const displayName = activeModTarget.displayName || uname;
     if (!uname) return;
     const action = modActHire.dataset.action || 'hire';
+    const activeStreamObj = store.getState().activeStream;
+    const targetChId = currentChannelId || channelId || activeStreamObj?.channelId || activeStreamObj?.channel?.id;
 
     if (action === 'dismiss') {
-      if (!confirm(`Remove ${uname} from channel moderators?`)) return;
+      if (!confirm(`Remove ${displayName} from channel moderators?`)) return;
       try {
-        await channelApi.removeModerator(uname);
-        store.showToast(`Removed ${uname} from moderators`, 'info');
+        await channelApi.removeModerator(uname, targetChId);
+        channelMods.delete(uname.toLowerCase());
+        if (activeModTarget.userId) channelMods.delete(activeModTarget.userId.toLowerCase());
+        store.showToast(`Removed ${displayName} from moderators`, 'info');
       } catch (err) {
         store.showToast(err.message || 'Failed to remove moderator', 'error');
       }
     } else {
-      if (!confirm(`Hire ${uname} as a channel moderator?`)) return;
+      if (!confirm(`Hire ${displayName} as a channel moderator?`)) return;
       try {
-        await channelApi.hireModerator(uname);
-        store.showToast(`🛡️ ${uname} has been hired as a channel moderator!`, 'success');
+        await channelApi.hireModerator(uname, targetChId);
+        channelMods.add(uname.toLowerCase());
+        if (activeModTarget.userId) channelMods.add(activeModTarget.userId.toLowerCase());
+        store.showToast(`🛡️ ${displayName} has been hired as a channel moderator!`, 'success');
       } catch (err) {
         store.showToast(err.message || 'Failed to hire moderator', 'error');
       }
@@ -1819,19 +1993,23 @@ async function initChat(channelId, streamId) {
   modActViewChannel?.addEventListener('click', (e) => {
     e.stopPropagation();
     const uname = activeModTarget.username;
+    const displayName = activeModTarget.displayName || uname;
     if (modPopover) modPopover.style.display = 'none';
-    if (uname) navigateToUserChannel(uname);
+    if (uname) navigateToUserChannel(uname, displayName);
   });
 
   modActDel?.addEventListener('click', async (e) => {
     e.stopPropagation();
     if (!activeModTarget.msgId) return;
     if (!confirm(`Delete message #${activeModTarget.msgId}?`)) return;
+    const activeStreamObj = store.getState().activeStream;
+    const targetChId = currentChannelId || channelId || activeStreamObj?.channelId || activeStreamObj?.channel?.id;
+    const targetSid = currentStreamId || streamId || activeStreamObj?.id;
     try {
-      if (chatConnection) {
-        await chatConnection.invoke('DeleteMessage', streamId, activeModTarget.msgId);
-      } else if (chId) {
-        await moderationApi.deleteMessage(chId, activeModTarget.msgId);
+      if (chatConnection && targetSid) {
+        await chatConnection.invoke('DeleteMessage', targetSid, activeModTarget.msgId);
+      } else if (targetChId) {
+        await moderationApi.deleteMessage(targetChId, activeModTarget.msgId);
       }
       store.showToast('Message deleted', 'info');
     } catch (err) {
@@ -1842,28 +2020,76 @@ async function initChat(channelId, streamId) {
 
   modActTimeout?.addEventListener('click', async (e) => {
     e.stopPropagation();
-    const uname = activeModTarget.username;
-    if (!uname || !chId) return;
-    if (!confirm(`Timeout ${uname} for 5 minutes?`)) return;
-    try {
-      await moderationApi.timeoutUser(chId, { username: uname, durationSeconds: 300, reason: 'Chat violation' });
-      store.showToast(`${uname} timed out for 5 minutes`, 'info');
-    } catch (err) {
-      store.showToast(err.message || 'Failed to timeout user', 'error');
+    const targetUser = activeModTarget.username || activeModTarget.displayName || activeModTarget.userId;
+    const displayName = activeModTarget.displayName || targetUser;
+    const action = modActTimeout.dataset.action || 'timeout';
+    const activeStreamObj = store.getState().activeStream;
+    const targetChId = currentChannelId || channelId || activeStreamObj?.channelId || activeStreamObj?.channel?.id || chId;
+    if (!targetUser) {
+      store.showToast('No user selected', 'error');
+      return;
+    }
+    if (!targetChId) {
+      store.showToast('Channel ID could not be determined', 'error');
+      return;
+    }
+
+    if (action === 'remove-timeout') {
+      if (!confirm(`Remove timeout for ${displayName}?`)) return;
+      try {
+        await moderationApi.removeTimeout(targetChId, targetUser);
+        channelTimeouts.delete(targetUser.toLowerCase());
+        store.showToast(`${displayName}'s timeout has been removed`, 'info');
+      } catch (err) {
+        store.showToast(err.message || 'Failed to remove timeout', 'error');
+      }
+    } else {
+      if (!confirm(`Timeout ${displayName} for 5 minutes?`)) return;
+      try {
+        await moderationApi.timeoutUser(targetChId, { username: targetUser, durationSeconds: 300, reason: 'Chat violation' });
+        channelTimeouts.add(targetUser.toLowerCase());
+        store.showToast(`${displayName} timed out for 5 minutes`, 'info');
+      } catch (err) {
+        store.showToast(err.message || 'Failed to timeout user', 'error');
+      }
     }
     if (modPopover) modPopover.style.display = 'none';
   });
 
   modActBan?.addEventListener('click', async (e) => {
     e.stopPropagation();
-    const uname = activeModTarget.username;
-    if (!uname || !chId) return;
-    if (!confirm(`Permanently ban ${uname} from this channel's chat?`)) return;
-    try {
-      await moderationApi.banUser(chId, { username: uname, reason: 'Chat violation' });
-      store.showToast(`${uname} banned from chat`, 'info');
-    } catch (err) {
-      store.showToast(err.message || 'Failed to ban user', 'error');
+    const targetUser = activeModTarget.username || activeModTarget.displayName || activeModTarget.userId;
+    const displayName = activeModTarget.displayName || targetUser;
+    const action = modActBan.dataset.action || 'ban';
+    const activeStreamObj = store.getState().activeStream;
+    const targetChId = currentChannelId || channelId || activeStreamObj?.channelId || activeStreamObj?.channel?.id || chId;
+    if (!targetUser) {
+      store.showToast('No user selected', 'error');
+      return;
+    }
+    if (!targetChId) {
+      store.showToast('Channel ID could not be determined', 'error');
+      return;
+    }
+
+    if (action === 'unban') {
+      if (!confirm(`Unban ${displayName} from this channel's chat?`)) return;
+      try {
+        await moderationApi.unbanUser(targetChId, targetUser);
+        channelBans.delete(targetUser.toLowerCase());
+        store.showToast(`${displayName} has been unbanned from chat`, 'info');
+      } catch (err) {
+        store.showToast(err.message || 'Failed to unban user', 'error');
+      }
+    } else {
+      if (!confirm(`Permanently ban ${displayName} from this channel's chat?`)) return;
+      try {
+        await moderationApi.banUser(targetChId, { username: targetUser, reason: 'Chat violation' });
+        channelBans.add(targetUser.toLowerCase());
+        store.showToast(`${displayName} banned from chat`, 'info');
+      } catch (err) {
+        store.showToast(err.message || 'Failed to ban user', 'error');
+      }
     }
     if (modPopover) modPopover.style.display = 'none';
   });
@@ -1921,6 +2147,7 @@ async function initChat(channelId, streamId) {
     });
 
     chatConnection.on('UserTimedOut', (username, durationSeconds) => {
+      if (username) channelTimeouts.add(username.toLowerCase());
       const div = document.createElement('div');
       div.style.cssText = 'color:#f59e0b;font-style:italic;font-size:11px;padding:3px 8px;background:rgba(245,158,11,0.08);border-radius:4px;';
       div.textContent = `⏳ ${username} was timed out (${durationSeconds}s)`;
@@ -1928,7 +2155,17 @@ async function initChat(channelId, streamId) {
       if (isAtBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
     });
 
+    chatConnection.on('UserTimeoutRemoved', (username) => {
+      if (username) channelTimeouts.delete(username.toLowerCase());
+      const div = document.createElement('div');
+      div.style.cssText = 'color:#10b981;font-style:italic;font-size:11px;padding:3px 8px;background:rgba(16,185,129,0.08);border-radius:4px;';
+      div.textContent = `⏱️ ${username}'s timeout was removed`;
+      messagesEl.appendChild(div);
+      if (isAtBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+
     chatConnection.on('UserBanned', (username) => {
+      if (username) channelBans.add(username.toLowerCase());
       const div = document.createElement('div');
       div.style.cssText = 'color:#ef4444;font-style:italic;font-size:11px;padding:3px 8px;background:rgba(239,68,68,0.08);border-radius:4px;';
       div.textContent = `🚫 ${username} was banned from chat`;
@@ -1936,6 +2173,14 @@ async function initChat(channelId, streamId) {
       if (isAtBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
     });
 
+    chatConnection.on('UserUnbanned', (username) => {
+      if (username) channelBans.delete(username.toLowerCase());
+      const div = document.createElement('div');
+      div.style.cssText = 'color:#10b981;font-style:italic;font-size:11px;padding:3px 8px;background:rgba(16,185,129,0.08);border-radius:4px;';
+      div.textContent = `✅ ${username} was unbanned from chat`;
+      messagesEl.appendChild(div);
+      if (isAtBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
     chatConnection.on('EmotesOnlyToggled', (enabled) => {
       updateEmotesOnlyUI(enabled);
       const div = document.createElement('div');
@@ -2023,22 +2268,26 @@ async function initChat(channelId, streamId) {
 }
 
 function createMessageHtml(msg, isModOrStreamer) {
-  const sender = msg.senderName || msg.SenderName || msg.username || 'Viewer';
+  const displayName = msg.senderName || msg.SenderName || msg.senderUsername || msg.SenderUsername || msg.username || 'Viewer';
+  const username = msg.senderUsername || msg.SenderUsername || msg.username || msg.senderName || msg.SenderName || displayName;
+  const userId = msg.senderId || msg.SenderId || '';
   const content = msg.content || msg.Content || '';
   const mid = msg.id || msg.Id;
   const sentAt = msg.sentAt || msg.SentAt;
   const timeStr = sentAt ? new Date(sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   const parsedContent = parseChatContent(content);
   const senderAvatar = msg.senderAvatarUrl || msg.SenderAvatarUrl || msg.profilePictureUrl || msg.avatarUrl || null;
-  const senderInitial = (sender[0] || 'U').toUpperCase();
+  const senderInitial = (displayName[0] || username[0] || 'U').toUpperCase();
 
   const activeS = store.getState().activeStream;
   const isBroadcaster = Boolean(activeS && (
-    sender === activeS.streamerName ||
-    sender === activeS.channelName ||
-    sender === activeS.channel?.ownerUsername
+    displayName === activeS.streamerName ||
+    username === activeS.streamerName ||
+    displayName === activeS.channelName ||
+    username === activeS.channelName ||
+    username === activeS.channel?.ownerUsername
   ));
-  const roleBadge = getRoleBadge(msg, sender);
+  const roleBadge = getRoleBadge(msg, displayName);
   const senderColor = getSenderColor(isBroadcaster, msg.senderRole || msg.SenderRole);
 
   const avatarHtml = senderAvatar
@@ -2049,11 +2298,11 @@ function createMessageHtml(msg, isModOrStreamer) {
     <div class="chat-msg chat-msg-animate" data-msg-id="${mid || ''}" style="display:flex;align-items:flex-start;justify-content:space-between;padding:5px 8px;border-radius:6px;gap:6px;transition:background 0.15s ease;">
       <div style="flex:1;word-break:break-word;font-size:13px;line-height:1.5;display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
         <span style="font-size:10px;color:var(--color-text-muted);margin-right:2px;opacity:0.65;font-variant-numeric:tabular-nums;">${timeStr}</span>
-        <span class="chat-avatar-link" data-username="${escapeHtml(sender)}" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;overflow:hidden;background:rgba(0,242,254,0.15);border:1px solid rgba(0,242,254,0.3);vertical-align:middle;cursor:pointer;flex-shrink:0;margin-right:2px;" title="View ${escapeHtml(sender)}'s channel">
+        <span class="chat-avatar-link" data-username="${escapeHtml(username)}" data-display-name="${escapeHtml(displayName)}" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;overflow:hidden;background:rgba(0,242,254,0.15);border:1px solid rgba(0,242,254,0.3);vertical-align:middle;cursor:pointer;flex-shrink:0;margin-right:2px;" title="View ${escapeHtml(displayName)}'s channel">
           ${avatarHtml}
         </span>
         ${roleBadge}
-        <span class="chat-user" data-username="${escapeHtml(sender)}" data-msg-id="${mid || ''}" style="font-weight:700;color:${senderColor};margin-right:4px;cursor:pointer;" title="${isModOrStreamer ? 'Moderator: click for actions' : 'Click to view channel'}">${escapeHtml(sender)}:</span>
+        <span class="chat-user" data-username="${escapeHtml(username)}" data-display-name="${escapeHtml(displayName)}" data-user-id="${escapeHtml(userId)}" data-msg-id="${mid || ''}" style="font-weight:700;color:${senderColor};margin-right:4px;cursor:pointer;" title="${isModOrStreamer ? 'Moderator: click for actions' : 'Click to view channel'}">${escapeHtml(displayName)}:</span>
         <span class="chat-text" style="color:var(--color-text-primary,#e2e8f0);">${parsedContent}</span>
       </div>
     </div>
